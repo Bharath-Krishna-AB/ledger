@@ -1,9 +1,9 @@
-import { LedgerClient } from "@/components/LedgerClient";
+import { DashboardClient } from "@/components/DashboardClient";
 
 export default function Home() {
   return (
     <>
-      <LedgerClient />
+      <DashboardClient />
     </>
 
   );

@@ -18,10 +18,10 @@ export function Header() {
     return (
         <header
             ref={headerRef}
-            className="h-20 w-full flex items-center justify-between px-8 bg-white/50 backdrop-blur-xl border-b border-border z-10 sticky top-0"
+            className="h-24 w-full flex items-center justify-between px-8 bg-transparent z-10 sticky top-0"
         >
             <div className="flex items-center gap-4">
-                <button className="lg:hidden text-gray-500 hover:text-foreground">
+                <button className="lg:hidden text-gray-400 hover:text-black transition-colors">
                     <Menu className="w-5 h-5" />
                 </button>
                 <div className="relative w-full max-w-md hidden md:block">
@@ -29,28 +29,24 @@ export function Header() {
                     <input
                         type="text"
                         placeholder="Search for metrics or settings..."
-                        className="w-full pl-11 pr-4 py-2 bg-gray-50/50 border border-border rounded-lg text-sm text-foreground outline-none focus:bg-white focus:border-accent/40 focus:ring-4 focus:ring-accent/10 transition-all placeholder:text-gray-400"
+                        className="w-full pl-11 pr-4 py-2.5 bg-white shadow-soft rounded-full text-sm text-black outline-none focus:ring-2 focus:ring-gray-100 transition-all placeholder:text-gray-400 font-medium"
                     />
                 </div>
             </div>
 
-            <div className="flex items-center gap-5 shrink-0">
-                <button className="relative w-10 h-10 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-500 hover:text-foreground transition-all">
+            <div className="flex items-center gap-4 shrink-0">
+                <button className="relative w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-soft hover:shadow-soft-lg text-gray-500 hover:text-black transition-all">
                     <Bell className="w-5 h-5" />
-                    <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+                    <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
                 </button>
 
-                <div className="h-6 w-px bg-border"></div>
-
-                <div className="flex items-center gap-3 cursor-pointer group rounded-xl p-1 hover:bg-gray-50 transition-colors">
+                <div className="flex items-center gap-3 cursor-pointer group bg-white shadow-soft rounded-full pl-3 pr-1 py-1 hover:shadow-soft-lg transition-all border border-gray-50">
                     <div className="text-right hidden sm:block">
-                        <p className="text-sm font-semibold text-foreground leading-tight">Admin</p>
-                        <p className="text-[11px] font-medium text-gray-500">Free Tier</p>
+                        <p className="text-sm font-semibold text-black leading-tight">Admin</p>
+                        <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Free Tier</p>
                     </div>
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-accent to-purple-400 p-[2px]">
-                        <div className="w-full h-full rounded-full bg-white border border-white flex items-center justify-center">
-                            <span className="text-accent text-xs font-bold">OS</span>
-                        </div>
+                    <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center">
+                        <span className="text-black text-xs font-bold font-kol">OS</span>
                     </div>
                 </div>
             </div>

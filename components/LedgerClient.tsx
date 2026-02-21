@@ -22,34 +22,15 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
-interface Transaction {
-    id: string;
-    date: string;
-    description: string;
-    category_prices?: Record<string, number>;
-    category?: string; // Kept for backwards compatibility just in case
-    amount: number;
-    status: "Completed" | "Pending";
-}
+import { useFinance, Transaction } from "@/context/FinanceContext";
 
-const initialTransactions: Transaction[] = [
-    { id: "TXN-001", date: "2026-02-21", description: "Product Sale - Premium Plan", category_prices: { "Sales": 1250.00 }, amount: 1250.00, status: "Completed" },
-    { id: "TXN-002", date: "2026-02-20", description: "AWS Hosting", category_prices: { "Infrastructure": -150.00 }, amount: -150.00, status: "Completed" },
-    { id: "TXN-003", date: "2026-02-18", description: "Marketing Campaign (FB)", category_prices: { "Marketing": -450.00 }, amount: -450.00, status: "Completed" },
-    { id: "TXN-004", date: "2026-02-15", description: "Consulting Services", category_prices: { "Services": 3000.00 }, amount: 3000.00, status: "Completed" },
-    { id: "TXN-005", date: "2026-02-12", description: "Software Subscriptions", category_prices: { "Software": -299.99 }, amount: -299.99, status: "Completed" },
-    { id: "TXN-006", date: "2026-02-10", description: "Product Sale - Basic Plan", category_prices: { "Sales": 250.00 }, amount: 250.00, status: "Completed" },
-    { id: "TXN-007", date: "2026-02-05", description: "Office Supplies", category_prices: { "Other": -55.50 }, amount: -55.50, status: "Completed" },
-    { id: "TXN-008", date: "2026-02-01", description: "Monthly Retainer", category_prices: { "Services": 5000.00 }, amount: 5000.00, status: "Completed" },
-];
-
-const COLORS = ['#703EFF', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#6B7280'];
+const COLORS = ['#DBDC5D', '#8BBFDA', '#A9B81B', '#703EFF', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#6B7280'];
 
 export function LedgerClient() {
+    const { transactions, addTransaction, deleteTransaction } = useFinance();
     const containerRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<HTMLDivElement>(null);
 
-    const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
 
@@ -63,22 +44,68 @@ export function LedgerClient() {
     const [desc, setDesc] = useState("");
     const [amt, setAmt] = useState("");
     const [cat, setCat] = useState("Sales");
+    const [txnType, setTxnType] = useState<"Income" | "Expense">("Income");
 
     // Filter & Sort state
     const [searchQuery, setSearchQuery] = useState("");
-    const [filterType, setFilterType] = useState<"All" | "Pending">("All");
+    const [filterType, setFilterType] = useState<"All" | "Income" | "Expense" | "Pending">("All");
     const [sortField, setSortField] = useState<"date" | "amount" | null>("date");
     const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
+    // AI Categorizer State
+    const [isAutoCategorizing, setIsAutoCategorizing] = useState(false);
+    const [showAiBadge, setShowAiBadge] = useState(false);
+    const aiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Receipt Scanner State
+    const [isScanningReceipt, setIsScanningReceipt] = useState(false);
+    const [receiptScanned, setReceiptScanned] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
+
+    // AI Categorizer Effect
     useEffect(() => {
-        setTransactions(initialTransactions);
-        const storedCats = localStorage.getItem("customCategories");
-        if (storedCats) {
-            try {
-                setCustomCategories(JSON.parse(storedCats));
-            } catch (e) { }
+        if (!desc) {
+            setShowAiBadge(false);
+            return;
         }
-    }, []);
+
+        // Debounce to simulate waiting for user to stop typing
+        if (aiTimeoutRef.current) clearTimeout(aiTimeoutRef.current);
+
+        setIsAutoCategorizing(true);
+        setShowAiBadge(false);
+
+        aiTimeoutRef.current = setTimeout(() => {
+            const lowerDesc = desc.toLowerCase();
+            let newCat = cat;
+
+            // Simple mock heuristic logic
+            if (lowerDesc.includes("netflix") || lowerDesc.includes("spotify") || lowerDesc.includes("adobe") || lowerDesc.includes("aws")) {
+                newCat = "Software";
+                setTxnType("Expense");
+            } else if (lowerDesc.includes("server") || lowerDesc.includes("aws") || lowerDesc.includes("hosting") || lowerDesc.includes("domain")) {
+                newCat = "Infrastructure";
+                setTxnType("Expense");
+            } else if (lowerDesc.includes("google ads") || lowerDesc.includes("facebook ads") || lowerDesc.includes("marketing") || lowerDesc.includes("promo")) {
+                newCat = "Marketing";
+                setTxnType("Expense");
+            } else if (lowerDesc.includes("sale") || lowerDesc.includes("client") || lowerDesc.includes("invoice") || lowerDesc.includes("freelance")) {
+                newCat = "Sales";
+                setTxnType("Income");
+            }
+
+            if (newCat !== cat || (newCat === cat && lowerDesc.length > 3)) {
+                setCat(newCat);
+                setShowAiBadge(true);
+            }
+
+            setIsAutoCategorizing(false);
+        }, 800); // 800ms "AI Request" delay
+
+        return () => {
+            if (aiTimeoutRef.current) clearTimeout(aiTimeoutRef.current);
+        };
+    }, [desc]);
 
     useEffect(() => {
         gsap.fromTo(
@@ -123,20 +150,51 @@ export function LedgerClient() {
         e.preventDefault();
         if (!desc || !amt || !cat) return;
 
-        const numAmt = parseFloat(amt);
-        const newTxn: Transaction = {
-            id: `TXN-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+        addTransaction({
             date: new Date().toISOString().split('T')[0],
             description: desc,
-            category_prices: { [cat]: numAmt },
-            amount: numAmt,
-            status: "Completed"
-        };
+            category: cat,
+            type: txnType,
+            amount: parseFloat(amt),
+        });
 
-        setTransactions([newTxn, ...transactions]);
         setIsAddModalOpen(false);
         setDesc("");
         setAmt("");
+        setShowAiBadge(false);
+        setReceiptScanned(false);
+    };
+
+    // Receipt Scanner Mock Handlers
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+        setIsScanningReceipt(true);
+        setReceiptScanned(false);
+
+        // Mock OCR Scan Delay
+        setTimeout(() => {
+            setIsScanningReceipt(false);
+            setReceiptScanned(true);
+
+            // Auto-fill form based on "scanned" receipt
+            setDesc("AWS Cloud Services");
+            setAmt("15450.00");
+            setCat("Infrastructure");
+            setTxnType("Expense");
+            setShowAiBadge(true); // Re-use AI badge to show it was auto-filled
+
+        }, 1500); // 1.5s scan time
     };
 
     // Derived Data for Charts
@@ -212,45 +270,39 @@ export function LedgerClient() {
     };
 
     return (
-        <div ref={viewRef} className="flex h-screen overflow-hidden bg-gray-50/30">
+        <div ref={viewRef} className="flex h-screen overflow-hidden bg-background">
             <Sidebar />
             <div className="flex-1 flex flex-col h-full overflow-y-auto relative">
+                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[120px] -z-10 pointer-events-none translate-x-1/3 -translate-y-1/3"></div>
+                <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-secondary/5 rounded-full blur-[120px] -z-10 pointer-events-none -translate-x-1/3 translate-y-1/3"></div>
                 <Header />
 
                 <main
                     ref={containerRef}
-                    className="flex-1 p-8 lg:p-12 space-y-8 max-w-[1600px] mx-auto w-full"
+                    className="flex-1 px-10 pt-8 pb-20 space-y-8 max-w-[1600px] mx-auto w-full z-0 custom-scrollbar"
                 >
                     {/* Header */}
-                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-4 border-b border-border/50">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-4">
                         <div>
-                            <p className="text-sm font-semibold text-accent uppercase tracking-wider mb-2">Financials</p>
+                            <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-2">Financials</p>
                             <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
                                 Ledger & Bookkeeping
                             </h1>
                             <p className="text-gray-500 mt-2">Track income, expenses, and overall balance.</p>
                         </div>
-                        <div className="flex gap-3">
-                            <motion.button
-                                onClick={() => setIsCategoriesModalOpen(true)}
-                                whileHover={{ y: -2 }}
-                                whileTap={{ scale: 0.98 }}
-                                className="bg-white text-foreground font-semibold px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-gray-50 transition-all border border-border shadow-sm text-sm"
-                            >
-                                <Filter className="w-4 h-4 text-gray-400" /> Categories
-                            </motion.button>
+                        <div className="flex gap-4">
                             <motion.button
                                 whileHover={{ y: -2 }}
                                 whileTap={{ scale: 0.98 }}
-                                className="bg-white text-foreground font-semibold px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-gray-50 transition-all border border-border shadow-sm text-sm"
+                                className="bg-white text-foreground font-semibold px-6 py-3 rounded-full flex items-center gap-2 hover:-translate-y-0.5 transition-all border border-gray-100 shadow-soft hover:shadow-soft-lg text-sm"
                             >
                                 <Download className="w-4 h-4 text-gray-400" /> Export CSV
                             </motion.button>
                             <motion.button
                                 onClick={() => setIsAddModalOpen(true)}
-                                whileHover={{ y: -2, boxShadow: "0 10px 25px -5px rgba(112,62,255,0.4)" }}
+                                whileHover={{ y: -2 }}
                                 whileTap={{ scale: 0.98 }}
-                                className="bg-accent text-white font-semibold px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-accent/90 transition-all shadow-md shadow-accent/20 text-sm"
+                                className="bg-primary text-white font-semibold px-6 py-3 rounded-full flex items-center gap-2 hover:bg-primary/90 transition-all shadow-soft hover:shadow-soft-lg text-sm"
                             >
                                 <Plus className="w-4 h-4" /> Add Entry
                             </motion.button>
@@ -258,66 +310,66 @@ export function LedgerClient() {
                     </div>
 
                     {/* Summary Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                        <div className="bg-white rounded-[24px] p-6 shadow-sm border border-border/60 hover:border-accent/30 transition-colors group relative overflow-hidden">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-white rounded-[32px] p-8 shadow-soft border border-gray-100 transition-colors group relative overflow-hidden hover:shadow-soft-lg">
                             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
                                 <Wallet className="w-24 h-24" />
                             </div>
-                            <div className="flex justify-between items-start mb-4 relative z-10">
-                                <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
-                                    <Wallet className="w-5 h-5" />
+                            <div className="flex justify-between items-start mb-6 relative z-10">
+                                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                                    <Wallet className="w-6 h-6" />
                                 </div>
                             </div>
                             <div className="relative z-10">
-                                <p className="text-gray-500 text-sm font-medium mb-1">Total Balance</p>
+                                <p className="text-gray-500 text-sm font-semibold mb-2">Total Balance</p>
                                 <h2 className="text-4xl font-bold tracking-tight text-foreground">₹{balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h2>
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-[24px] p-6 shadow-sm border border-border/60 hover:border-green-500/30 transition-colors group relative overflow-hidden">
+                        <div className="bg-white rounded-[32px] p-8 shadow-soft border border-gray-100 transition-colors group relative overflow-hidden hover:shadow-soft-lg">
                             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
                                 <TrendingUp className="w-24 h-24" />
                             </div>
-                            <div className="flex justify-between items-start mb-4 relative z-10">
-                                <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center text-green-600">
-                                    <TrendingUp className="w-5 h-5" />
+                            <div className="flex justify-between items-start mb-6 relative z-10">
+                                <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center text-green-600">
+                                    <TrendingUp className="w-6 h-6" />
                                 </div>
-                                <span className="flex items-center gap-1 text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-md">
+                                <span className="flex items-center gap-1 text-xs font-bold text-green-700 bg-green-100 px-3 py-1.5 rounded-full">
                                     <ArrowUpRight className="w-3 h-3" /> +14%
                                 </span>
                             </div>
                             <div className="relative z-10">
-                                <p className="text-gray-500 text-sm font-medium mb-1">Total Income (Monthly)</p>
+                                <p className="text-gray-500 text-sm font-semibold mb-2">Total Income (Monthly)</p>
                                 <h2 className="text-3xl font-bold tracking-tight text-foreground">₹{totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h2>
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-[24px] p-6 shadow-sm border border-border/60 hover:border-red-500/30 transition-colors group relative overflow-hidden">
+                        <div className="bg-white rounded-[32px] p-8 shadow-soft border border-gray-100 transition-colors group relative overflow-hidden hover:shadow-soft-lg">
                             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
                                 <TrendingDown className="w-24 h-24" />
                             </div>
-                            <div className="flex justify-between items-start mb-4 relative z-10">
-                                <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center text-red-600">
-                                    <TrendingDown className="w-5 h-5" />
+                            <div className="flex justify-between items-start mb-6 relative z-10">
+                                <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-600">
+                                    <TrendingDown className="w-6 h-6" />
                                 </div>
                             </div>
                             <div className="relative z-10">
-                                <p className="text-gray-500 text-sm font-medium mb-1">Total Expenses (Monthly)</p>
+                                <p className="text-gray-500 text-sm font-semibold mb-2">Total Expenses (Monthly)</p>
                                 <h2 className="text-3xl font-bold tracking-tight text-foreground">₹{totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h2>
                             </div>
                         </div>
                     </div>
 
                     {/* Analytics & Insights Section */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
                         {/* Cash Flow Chart */}
-                        <div className="lg:col-span-2 bg-white rounded-[24px] border border-border/60 shadow-sm p-6 flex flex-col">
-                            <div className="flex items-center justify-between mb-6">
+                        <div className="lg:col-span-2 bg-white rounded-[32px] border border-gray-100 shadow-soft p-8 flex flex-col">
+                            <div className="flex items-center justify-between mb-8">
                                 <div>
-                                    <h2 className="text-lg font-bold text-foreground">Cash Flow Trend</h2>
-                                    <p className="text-sm text-gray-500">Income vs Expenses over time</p>
+                                    <h2 className="text-xl font-bold text-foreground">Cash Flow Trend</h2>
+                                    <p className="text-sm font-semibold text-gray-500">Income vs Expenses over time</p>
                                 </div>
-                                <select className="bg-gray-50 border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-accent/20">
+                                <select className="bg-gray-50 border-none rounded-full px-5 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer">
                                     <option>Last 30 Days</option>
                                     <option>Last Quarter</option>
                                     <option>This Year</option>
@@ -340,7 +392,7 @@ export function LedgerClient() {
                                         <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#6B7280' }} tickLine={false} axisLine={false} />
                                         <YAxis tick={{ fontSize: 12, fill: '#6B7280' }} tickLine={false} axisLine={false} tickFormatter={(value) => `₹${value}`} />
                                         <RechartsTooltip
-                                            contentStyle={{ borderRadius: '16px', border: '1px solid #E5E7EB', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                                            contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 10px 40px -4px rgba(0, 0, 0, 0.08)' }}
                                             formatter={(value: any) => [`₹${Number(value).toLocaleString()}`, undefined]}
                                         />
                                         <Area type="monotone" dataKey="income" name="Income" stroke="#10B981" strokeWidth={3} fillOpacity={1} fill="url(#colorIncome)" />
@@ -351,28 +403,34 @@ export function LedgerClient() {
                         </div>
 
                         {/* AI Insights & Expense Breakdown */}
-                        <div className="flex flex-col gap-5">
+                        <div className="flex flex-col gap-6">
                             {/* AI Insight Card */}
-                            <div className="bg-linear-to-br from-accent/10 to-purple-500/5 rounded-[24px] border border-accent/20 shadow-sm p-6 relative overflow-hidden group">
+                            <div className="bg-linear-to-br from-primary/10 to-secondary/10 rounded-[32px] border border-primary/20 shadow-soft p-8 relative overflow-hidden group">
                                 <div className="absolute top-0 right-0 p-4 opacity-10">
-                                    <Sparkles className="w-16 h-16 text-accent" />
+                                    <Sparkles className="w-16 h-16 text-primary" />
                                 </div>
-                                <div className="flex items-center gap-2 mb-3">
-                                    <Sparkles className="w-5 h-5 text-accent" />
-                                    <h3 className="font-bold text-transparent bg-clip-text bg-linear-to-r from-accent to-purple-600">Smart Insight</h3>
+                                <div className="flex items-center gap-2 mb-4">
+                                    <Sparkles className="w-6 h-6 text-primary" />
+                                    <h3 className="font-bold text-xl text-transparent bg-clip-text bg-linear-to-r from-primary to-secondary">Smart Insight</h3>
                                 </div>
-                                <p className="text-sm text-gray-700 font-medium leading-relaxed mb-4">
-                                    Your <strong>Marketing</strong> expenses have increased by 15% this month compared to the last average.
-                                    However, total Income remains strong, projecting a <strong>₹4,500+</strong> surplus by month-end.
+                                <p className="text-sm text-gray-700 font-semibold leading-relaxed mb-6">
+                                    {expenseBreakdownData.length > 0 ? (
+                                        <>
+                                            Your highest expense is currently in <strong>{expenseBreakdownData[0].name}</strong>, totaling <strong>₹{expenseBreakdownData[0].value.toLocaleString()}</strong>.
+                                            Total Income stands at ₹{totalIncome.toLocaleString()}, resulting in a net balance of <strong>₹{balance.toLocaleString()}</strong>.
+                                        </>
+                                    ) : (
+                                        "Start tracking your income and expenses to receive personalized, AI-driven insights on your spending habits."
+                                    )}
                                 </p>
-                                <button className="text-xs font-bold text-accent flex items-center gap-1 group-hover:gap-2 transition-all">
-                                    View Detailed Forecast <ArrowRight className="w-3 h-3" />
+                                <button className="text-sm font-bold text-primary flex items-center gap-1.5 group-hover:gap-2.5 transition-all">
+                                    View Detailed Forecast <ArrowRight className="w-4 h-4" />
                                 </button>
                             </div>
 
                             {/* Expense Breakdown */}
-                            <div className="bg-white rounded-[24px] border border-border/60 shadow-sm p-6 flex-1 flex flex-col">
-                                <h3 className="text-sm font-bold text-foreground mb-4">Expense Breakdown</h3>
+                            <div className="bg-white rounded-[32px] border border-gray-100 shadow-soft p-8 flex-1 flex flex-col">
+                                <h3 className="text-lg font-bold text-foreground mb-6">Expense Breakdown</h3>
                                 {expenseBreakdownData.length > 0 ? (
                                     <div className="flex-1 flex flex-col justify-center relative">
                                         <div className="h-[140px] w-full">
@@ -392,25 +450,25 @@ export function LedgerClient() {
                                                     </Pie>
                                                     <RechartsTooltip
                                                         formatter={(value: any) => `₹${Number(value).toLocaleString()}`}
-                                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                                        contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 10px 40px -4px rgba(0, 0, 0, 0.08)' }}
                                                     />
                                                 </PieChart>
                                             </ResponsiveContainer>
                                         </div>
-                                        <div className="mt-3 space-y-2 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar">
+                                        <div className="mt-4 space-y-3 max-h-[120px] overflow-y-auto pr-2 custom-scrollbar">
                                             {expenseBreakdownData.map((entry, index) => (
-                                                <div key={index} className="flex items-center justify-between text-xs">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
-                                                        <span className="text-gray-600 font-medium truncate max-w-[80px]" title={entry.name}>{entry.name}</span>
+                                                <div key={index} className="flex items-center justify-between text-sm">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
+                                                        <span className="text-gray-600 font-semibold truncate max-w-[100px]" title={entry.name}>{entry.name}</span>
                                                     </div>
-                                                    <span className="font-semibold text-foreground">₹{entry.value.toLocaleString()}</span>
+                                                    <span className="font-bold text-foreground">₹{entry.value.toLocaleString()}</span>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="flex-1 flex items-center justify-center text-sm text-gray-400">
+                                    <div className="flex-1 flex items-center justify-center text-sm font-semibold text-gray-400">
                                         No expenses recorded yet.
                                     </div>
                                 )}
@@ -419,26 +477,26 @@ export function LedgerClient() {
                     </div>
 
                     {/* Transactions Table Section */}
-                    <div className="bg-white rounded-[24px] border border-border/60 shadow-sm flex flex-col overflow-hidden">
-                        <div className="p-6 border-b border-border/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                                <Receipt className="w-5 h-5 text-accent" /> Recent Transactions
+                    <div className="bg-white rounded-[32px] border border-gray-100 shadow-soft flex flex-col overflow-hidden mt-8">
+                        <div className="p-8 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                            <h2 className="text-xl font-bold text-foreground flex items-center gap-3">
+                                <Receipt className="w-6 h-6 text-primary" /> Recent Transactions
                             </h2>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-4">
                                 <div className="relative">
-                                    <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                    <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
                                     <input
                                         type="text"
                                         placeholder="Search ledger..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="py-2 pl-9 pr-4 text-sm bg-gray-50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all w-64"
+                                        className="py-3 pl-11 pr-5 text-sm font-semibold bg-gray-50 border-none rounded-full focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all w-72"
                                     />
                                 </div>
-                                <div className="relative flex items-center bg-gray-50 border border-border rounded-xl px-3 py-2 text-sm">
-                                    <Filter className="w-4 h-4 text-gray-400 mr-2" />
+                                <div className="relative flex items-center bg-gray-50 rounded-full px-5 py-3 text-sm font-semibold focus-within:ring-2 focus-within:ring-primary/50 cursor-pointer transition-all">
+                                    <Filter className="w-5 h-5 text-gray-400 mr-2 pointer-events-none" />
                                     <select
-                                        className="bg-transparent outline-none cursor-pointer text-gray-600 font-medium"
+                                        className="bg-transparent outline-none cursor-pointer text-foreground appearance-none pr-4"
                                         value={filterType}
                                         onChange={(e) => setFilterType(e.target.value as any)}
                                     >
@@ -468,47 +526,48 @@ export function LedgerClient() {
                                         </th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-border/50">
+                                <tbody className="divide-y divide-gray-100">
                                     {filteredAndSortedTransactions.map((txn) => (
                                         <tr key={txn.id} className="hover:bg-gray-50/50 transition-colors group">
                                             <td className="px-6 py-4">
-                                                <span className="text-sm font-medium text-foreground bg-gray-100 px-2 py-1 rounded-md">{txn.id}</span>
+                                                <span className="text-sm font-semibold text-foreground bg-gray-50 px-3 py-1.5 rounded-full">{txn.id}</span>
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-gray-500">
+                                            <td className="px-6 py-4 text-sm font-medium text-gray-500">
                                                 {txn.date}
                                             </td>
                                             <td className="px-6 py-4">
-                                                <p className="text-sm font-semibold text-foreground">{txn.description}</p>
+                                                <p className="text-sm font-bold text-foreground">{txn.description}</p>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <div className="flex flex-wrap gap-1">
-                                                    {txn.category_prices ? Object.keys(txn.category_prices).map(catName => (
-                                                        <span key={catName} className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
-                                                            {catName}
-                                                        </span>
-                                                    )) : (
-                                                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
-                                                            {txn.category || "Uncategorized"}
-                                                        </span>
-                                                    )}
-                                                </div>
+                                                <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-gray-50 text-gray-600">
+                                                    {txn.category}
+                                                </span>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="flex items-center gap-1.5 text-xs font-medium">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                                                <span className="inline-flex items-center gap-2 text-xs font-bold text-green-700 bg-green-100 px-3 py-1.5 rounded-full">
+                                                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
                                                     {txn.status}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-right">
-                                                <span className={`text-sm font-bold ${txn.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                    {txn.amount >= 0 ? '+' : '-'}₹{Math.abs(txn.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                                </span>
+                                                <div className="flex items-center justify-end gap-3">
+                                                    <span className={`text-sm font-bold ${txn.type === 'Income' ? 'text-green-600' : 'text-red-600'}`}>
+                                                        {txn.type === 'Income' ? '+' : '-'}₹{txn.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                    </span>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); deleteTransaction(txn.id); }}
+                                                        className="w-8 h-8 flex justify-center items-center text-red-400 bg-red-50 hover:bg-red-500 hover:text-white rounded-full transition-all opacity-0 group-hover:opacity-100 shadow-soft"
+                                                        title="Delete Transaction"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
                                     {filteredAndSortedTransactions.length === 0 && (
                                         <tr>
-                                            <td colSpan={6} className="px-6 py-12 text-center text-gray-500 text-sm">
+                                            <td colSpan={6} className="px-6 py-12 text-center text-gray-500 text-sm font-semibold">
                                                 No transactions match your filters.
                                             </td>
                                         </tr>
@@ -527,78 +586,170 @@ export function LedgerClient() {
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+                                className="absolute inset-0 bg-black/20 backdrop-blur-sm"
                                 onClick={() => setIsAddModalOpen(false)}
                             />
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                                className="relative bg-white border border-border rounded-[24px] shadow-2xl p-8 w-full max-w-md z-10 mx-4"
+                                className="relative bg-white rounded-[32px] shadow-soft-lg w-full max-w-md overflow-hidden z-10 mx-4"
                             >
-                                <button
-                                    onClick={() => setIsAddModalOpen(false)}
-                                    className="absolute top-4 right-4 p-2 text-gray-400 hover:text-foreground hover:bg-gray-100 rounded-full transition-colors"
-                                >
-                                    <X className="w-5 h-5" />
-                                </button>
-
-                                <div className="mb-6 flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center text-accent">
-                                        <Plus className="w-5 h-5" />
+                                <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                                            <Plus className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-xl font-bold text-foreground">Add Entry</h2>
+                                            <p className="text-sm font-semibold text-gray-500">Record a new transaction</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h2 className="text-xl font-bold text-foreground">Add Ledger Entry</h2>
-                                        <p className="text-xs text-gray-500 mt-0.5">Record a new transaction</p>
-                                    </div>
+                                    <button
+                                        onClick={() => setIsAddModalOpen(false)}
+                                        className="text-gray-400 hover:text-black transition-colors bg-gray-50 hover:bg-gray-100 p-2 rounded-full"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
                                 </div>
 
-                                <form onSubmit={handleAddTransaction} className="space-y-4">
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase">Amount (₹)</label>
-                                        <input
-                                            type="number"
-                                            value={amt}
-                                            onChange={(e) => setAmt(e.target.value)}
-                                            placeholder="0.00"
-                                            className="w-full text-lg font-medium p-3 bg-gray-50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
-                                            autoFocus
-                                            required
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase">Description</label>
-                                        <input
-                                            type="text"
-                                            value={desc}
-                                            onChange={(e) => setDesc(e.target.value)}
-                                            placeholder="e.g. Server costs, Product Sale"
-                                            className="w-full text-sm font-medium p-3 bg-gray-50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
-                                            required
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase">Category</label>
-                                        <select
-                                            value={cat}
-                                            onChange={(e) => setCat(e.target.value)}
-                                            className="w-full text-sm font-medium p-3 bg-gray-50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all appearance-none"
-                                        >
-                                            {customCategories.map(c => (
-                                                <option key={c} value={c}>{c}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <button
-                                        type="submit"
-                                        className="w-full bg-accent text-white font-bold py-3.5 rounded-xl hover:bg-accent/90 transition-all shadow-md shadow-accent/20 mt-2"
+                                <div className="p-8">
+                                    {/* Mock Receipt Dropzone */}
+                                    <div
+                                        className={`mb-6 p-6 border-2 border-dashed rounded-[24px] flex flex-col items-center justify-center text-center transition-all cursor-pointer ${isDragging ? 'border-primary bg-primary/5' : (receiptScanned ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-50 hover:bg-gray-100 hover:border-gray-300')}`}
+                                        onDragOver={handleDragOver}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={handleDrop}
+                                        onClick={() => !isScanningReceipt && !receiptScanned && document.getElementById('receipt-upload')?.click()}
                                     >
-                                        Save Transaction
-                                    </button>
-                                </form>
+                                        <input type="file" id="receipt-upload" className="hidden" accept="image/*" onChange={(e) => {
+                                            if (e.target.files && e.target.files.length > 0) {
+                                                handleDrop(e as any); // Re-use drop logic for file select
+                                            }
+                                        }} />
+                                        {isScanningReceipt ? (
+                                            <div className="flex flex-col items-center gap-2 py-4">
+                                                <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
+                                                <p className="text-xs font-bold text-primary">Extracting text via AI OCR...</p>
+                                            </div>
+                                        ) : receiptScanned ? (
+                                            <div className="flex flex-col items-center gap-1.5 py-4">
+                                                <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center mb-1">
+                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                                </div>
+                                                <p className="text-sm font-bold text-green-700">Receipt Extracted Successfully!</p>
+                                                <p className="text-xs font-semibold text-green-600/80">Values auto-filled below.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center gap-2 py-4">
+                                                <Receipt className={`w-8 h-8 ${isDragging ? 'text-primary' : 'text-gray-400'} transition-colors`} />
+                                                <div>
+                                                    <p className="text-sm font-bold text-gray-700">Quick Scan Receipt</p>
+                                                    <p className="text-xs font-medium text-gray-500 mt-1">Drag & drop or click to upload</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <form onSubmit={handleAddTransaction} className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <button
+                                                type="button"
+                                                onClick={() => setTxnType("Income")}
+                                                className={`py-3 rounded-full text-sm font-bold border transition-all shadow-none ${txnType === 'Income' ? 'bg-green-50 border-green-200 text-green-700 shadow-soft' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:shadow-soft'}`}
+                                            >
+                                                Income
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setTxnType("Expense")}
+                                                className={`py-3 rounded-full text-sm font-bold border transition-all shadow-none ${txnType === 'Expense' ? 'bg-red-50 border-red-200 text-red-700 shadow-soft' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:shadow-soft'}`}
+                                            >
+                                                Expense
+                                            </button>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-2 uppercase tracking-wide">Amount (₹)</label>
+                                            <input
+                                                type="number"
+                                                value={amt}
+                                                onChange={(e) => setAmt(e.target.value)}
+                                                placeholder="0.00"
+                                                className="w-full text-lg font-bold p-3 px-5 bg-gray-50 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all shadow-soft-inner"
+                                                autoFocus
+                                                required
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-2 uppercase tracking-wide">Description</label>
+                                            <input
+                                                type="text"
+                                                value={desc}
+                                                onChange={(e) => setDesc(e.target.value)}
+                                                placeholder="e.g. Server costs, Product Sale"
+                                                className="w-full text-sm font-semibold p-3 px-5 bg-gray-50 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all shadow-soft-inner"
+                                                required
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <label className="text-xs font-bold text-gray-700 uppercase tracking-wide">Category</label>
+                                                <AnimatePresence>
+                                                    {isAutoCategorizing && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0 }}
+                                                            animate={{ opacity: 1 }}
+                                                            exit={{ opacity: 0 }}
+                                                            className="flex items-center gap-1.5 text-xs font-semibold text-primary"
+                                                        >
+                                                            <Sparkles className="w-3.5 h-3.5 animate-pulse" /> AI Categorizing...
+                                                        </motion.div>
+                                                    )}
+                                                    {!isAutoCategorizing && showAiBadge && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, scale: 0.8 }}
+                                                            animate={{ opacity: 1, scale: 1 }}
+                                                            exit={{ opacity: 0, scale: 0.8 }}
+                                                            className="flex items-center gap-1.5 bg-primary/10 text-primary px-2.5 py-1 rounded-full text-xs font-bold"
+                                                        >
+                                                            <Sparkles className="w-3 h-3" /> Auto-selected
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
+                                            <div className="relative">
+                                                <select
+                                                    value={cat}
+                                                    onChange={(e) => {
+                                                        setCat(e.target.value);
+                                                        setShowAiBadge(false); // Manual override hides badge
+                                                    }}
+                                                    className={`w-full text-sm font-semibold p-3 px-5 pr-10 bg-gray-50 border rounded-full focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all appearance-none shadow-soft-inner ${showAiBadge ? 'border-primary shadow-[0_0_0_2px_rgba(112,62,255,0.1)]' : 'border-gray-200 focus:border-primary'}`}
+                                                >
+                                                    <option value="Sales">Sales</option>
+                                                    <option value="Services">Services</option>
+                                                    <option value="Infrastructure">Infrastructure</option>
+                                                    <option value="Marketing">Marketing</option>
+                                                    <option value="Software">Software</option>
+                                                    <option value="Other">Other</option>
+                                                </select>
+                                                <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
+                                                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            type="submit"
+                                            className="w-full bg-primary text-white font-bold py-4 rounded-full hover:bg-primary/90 hover:-translate-y-0.5 transition-all shadow-soft hover:shadow-soft-lg mt-4"
+                                        >
+                                            Save Transaction
+                                        </button>
+                                    </form>
+                                </div>
                             </motion.div>
                         </div>
                     )

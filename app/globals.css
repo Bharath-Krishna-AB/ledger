@@ -1,19 +1,24 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4f5f7;
-  /* Keep the slightly grey background for the island effect */
-  --foreground: oklch(0.205 0 0);
-  /* secondary */
-  --primary: oklch(0.97 0 0);
-  --secondary: oklch(0.205 0 0);
-  --accent: #703EFF;
-  --accent-light: #EBE4FF;
-  /* Soft purple complementing the accent */
+  --background: #F4F5F7;
+  /* Soft off-white for contrast against white cards */
+  --foreground: #111827;
+  /* Soft black for text */
 
-  --card: #ffffff;
-  --card-foreground: oklch(0.205 0 0);
-  --border: #e5e7eb;
+  /* Clean, muted, yet fresh accents */
+  --primary: #B026FF;
+  /* Fluorescent Purple */
+  --secondary: #00E5FF;
+  /* Fluorescent Blue / Cyan */
+  --accent: #CCFF00;
+  /* Lime Green */
+  --accent-light: #F4FFB8;
+
+  --card: #FFFFFF;
+  --card-foreground: #111827;
+  --border: #E5E7EB;
+  /* Very light gray border */
 }
 
 @theme inline {
@@ -26,26 +31,47 @@
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-border: var(--border);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+  /* Font mapping */
+  --font-sans: var(--font-proxima-nova);
+  --font-proxima: var(--font-proxima-nova);
+  --font-mono: var(--font-space-mono);
+  --font-anton: var(--font-anton);
+  --font-fatkat: var(--font-fatkat);
+  --font-kol: var(--font-kol-ranko);
+  --font-pixel: var(--font-pixel);
+}
+
+/* Soft elegant shadows for the clean pill UI */
+@utility shadow-soft {
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+}
+
+@utility shadow-soft-lg {
+  box-shadow: 0 10px 40px -4px rgba(0, 0, 0, 0.08);
+}
+
+@utility shadow-soft-inner {
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #f4f5f7;
-    --foreground: oklch(0.205 0 0);
-    --primary: oklch(0.97 0 0);
-    --secondary: oklch(0.205 0 0);
-    --accent: #703EFF;
-    --accent-light: #EBE4FF;
-
-    --card: #ffffff;
-    --card-foreground: oklch(0.205 0 0);
-    --border: #e5e7eb;
+    --background: #F4F5F7;
+    --foreground: #111827;
+    --primary: #B026FF;
+    --secondary: #00E5FF;
+    --accent: #CCFF00;
+    --accent-light: #F4FFB8;
+    --card: #FFFFFF;
+    --card-foreground: #111827;
+    --border: #E5E7EB;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+  font-family: var(--font-sans);
+  /* Fallback to clean sans by default */
 }
