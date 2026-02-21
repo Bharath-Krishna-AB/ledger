@@ -47,12 +47,12 @@ export function DashboardClient() {
         return `${percent > 0 ? '+' : ''}${percent.toFixed(1)}%`;
     };
 
-    const monthlyIncome = currentPeriodTransactions.filter(t => t.type === 'Income').reduce((sym, t) => sym + t.amount, 0);
-    const prevIncome = previousPeriodTransactions.filter(t => t.type === 'Income').reduce((sym, t) => sym + t.amount, 0);
+    const monthlyIncome = currentPeriodTransactions.filter(t => t.amount > 0).reduce((sym, t) => sym + t.amount, 0);
+    const prevIncome = previousPeriodTransactions.filter(t => t.amount > 0).reduce((sym, t) => sym + t.amount, 0);
     const incomeTrend = calcTrend(monthlyIncome, prevIncome);
 
-    const monthlyExpenses = currentPeriodTransactions.filter(t => t.type === 'Expense').reduce((sym, t) => sym + t.amount, 0);
-    const prevExpenses = previousPeriodTransactions.filter(t => t.type === 'Expense').reduce((sym, t) => sym + t.amount, 0);
+    const monthlyExpenses = currentPeriodTransactions.filter(t => t.amount < 0).reduce((sym, t) => sym + Math.abs(t.amount), 0);
+    const prevExpenses = previousPeriodTransactions.filter(t => t.amount < 0).reduce((sym, t) => sym + Math.abs(t.amount), 0);
     const expenseTrend = calcTrend(monthlyExpenses, prevExpenses);
 
     const netCashFlow = monthlyIncome - monthlyExpenses;
@@ -71,15 +71,15 @@ export function DashboardClient() {
             cashFlowMap.set(date, { date, income: 0, expenses: 0 });
         }
         const current = cashFlowMap.get(date);
-        if (txn.type === 'Income') current.income += txn.amount;
-        else current.expenses += txn.amount;
+        if (txn.amount > 0) current.income += txn.amount;
+        else current.expenses += Math.abs(txn.amount);
     });
     // Array format for Recharts
     const cashFlowPerformance = Array.from(cashFlowMap.values()).reverse(); // Reverse to read chronologically loosely
 
     // 6. Top Spending Categories
-    const categoryTotals = transactions.filter(t => t.type === 'Expense').reduce((acc, txn) => {
-        acc[txn.category] = (acc[txn.category] || 0) + txn.amount;
+    const categoryTotals = transactions.filter(t => t.amount < 0).reduce((acc, txn) => {
+        acc[txn.category] = (acc[txn.category] || 0) + Math.abs(txn.amount);
         return acc;
     }, {} as Record<string, number>);
 
@@ -114,7 +114,7 @@ export function DashboardClient() {
 
                 <Header />
 
-                <main className="flex-1 overflow-y-auto px-10 pt-8 pb-20 custom-scrollbar z-0">
+                <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-10 pt-8 pb-32 lg:pb-20 custom-scrollbar z-0 w-full relative">
                     <div ref={viewRef} className="max-w-6xl mx-auto space-y-12">
 
                         {/* 1. Net Worth Summary */}
@@ -137,22 +137,17 @@ export function DashboardClient() {
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-4 shrink-0">
-                                    <button className="bg-black text-white rounded-full px-6 py-3 text-sm font-semibold hover:bg-gray-800 shadow-soft hover:shadow-soft-lg transition-all">
-                                        Add Funds
-                                    </button>
-                                    <button className="bg-white text-black border border-gray-200 rounded-full px-6 py-3 text-sm font-semibold hover:bg-gray-50 transition-all flex items-center gap-2">
-                                        Transfer
-                                        <ArrowRight className="w-4 h-4" />
+                                    <button className="bg-black text-white rounded-full px-6 py-3 text-sm font-semibold hover:bg-gray-800 shadow-soft hover:shadow-soft-lg transition-all" onClick={() => window.location.href = '/ledger'}>
+                                        View Ledger
                                     </button>
                                 </div>
                             </div>
                         </div>
 
                         {/* 2. Quick Finance Metrics */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {[
-                                { title: "Total Assets", value: `₹${totalAssets.toLocaleString()}`, trend: "Live Data", isPositive: true, icon: Landmark, cardColor: "bg-white", iconBg: "bg-gray-50 text-gray-700" },
-                                { title: "Total Liabilities", value: `₹${totalLiabilities.toLocaleString()}`, trend: "Live Data", isPositive: true, icon: CreditCard, cardColor: "bg-white", iconBg: "bg-gray-50 text-gray-700" },
+                                { title: "Net Balance", value: `₹${netWorth.toLocaleString()}`, trend: "Live Data", isPositive: true, icon: Landmark, cardColor: "bg-white", iconBg: "bg-gray-50 text-gray-700" },
                                 { title: "30-Day Income", value: `₹${monthlyIncome.toLocaleString()}`, trend: incomeTrend, isPositive: parseFloat(incomeTrend) >= 0, icon: TrendingUp, cardColor: "bg-white", iconBg: "bg-accent/30 text-green-700" },
                                 { title: "30-Day Expenses", value: `₹${monthlyExpenses.toLocaleString()}`, trend: expenseTrend, isPositive: parseFloat(expenseTrend) <= 0, icon: TrendingDown, cardColor: "bg-white", iconBg: "bg-red-50 text-red-600" },
                             ].map((stat, i) => (
@@ -244,9 +239,6 @@ export function DashboardClient() {
                                         )
                                     })}
                                 </div>
-                                <button className="w-full mt-8 py-3 bg-gray-50 text-black font-semibold rounded-full text-sm hover:bg-gray-100 transition-colors">
-                                    View Budget Details
-                                </button>
                             </div>
                         </div>
 
@@ -254,7 +246,7 @@ export function DashboardClient() {
                         <div className="bg-white border border-gray-100 shadow-soft p-8 rounded-[32px] mt-6">
                             <div className="flex items-center justify-between mb-8">
                                 <h3 className="text-xl font-bold text-gray-900 tracking-tight">Recent Txns</h3>
-                                <button className="text-sm font-semibold text-gray-500 hover:text-black transition-colors">
+                                <button className="text-sm font-semibold text-gray-500 hover:text-black transition-colors" onClick={() => window.location.href = '/ledger'}>
                                     Go to Ledger &rarr;
                                 </button>
                             </div>
@@ -286,13 +278,13 @@ export function DashboardClient() {
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <span className="font-bold text-sm text-gray-900">
-                                                        {txn.type === 'Income' ? '+' : '-'}₹{txn.amount.toLocaleString()}
+                                                        {txn.amount > 0 ? '+' : '-'}₹{Math.abs(txn.amount).toLocaleString()}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] uppercase font-bold ${txn.type === 'Income' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
+                                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] uppercase font-bold ${txn.amount > 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
                                                         }`}>
-                                                        {txn.type}
+                                                        {txn.amount > 0 ? 'Income' : 'Expense'}
                                                     </span>
                                                 </td>
                                             </tr>

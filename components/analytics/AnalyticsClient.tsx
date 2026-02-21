@@ -113,7 +113,7 @@ export function AnalyticsClient() {
 
                 <Header />
 
-                <main className="flex-1 overflow-y-auto px-10 pt-8 pb-20 custom-scrollbar z-0">
+                <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-12 pt-8 pb-32 lg:pb-20 custom-scrollbar z-0 w-full relative">
                     <div ref={viewRef} className="max-w-6xl mx-auto space-y-8">
 
                         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">

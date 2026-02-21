@@ -49,8 +49,13 @@ export function LedgerClient() {
     // Filter & Sort state
     const [searchQuery, setSearchQuery] = useState("");
     const [filterType, setFilterType] = useState<"All" | "Income" | "Expense" | "Pending">("All");
+    const [dateFilter, setDateFilter] = useState("All");
     const [sortField, setSortField] = useState<"date" | "amount" | null>("date");
     const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 8;
 
     // AI Categorizer State
     const [isAutoCategorizing, setIsAutoCategorizing] = useState(false);
@@ -246,7 +251,20 @@ export function LedgerClient() {
             const matchesType = filterType === "All" ? true :
                 t.status === "Pending";
 
-            return matchesSearch && matchesType;
+            let matchesDate = true;
+            if (dateFilter !== "All") {
+                const txnDate = new Date(t.date);
+                const now = new Date();
+                if (dateFilter === "Last 7 Days") {
+                    matchesDate = txnDate >= new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                } else if (dateFilter === "Last 30 Days") {
+                    matchesDate = txnDate >= new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                } else if (dateFilter === "This Month") {
+                    matchesDate = txnDate.getMonth() === now.getMonth() && txnDate.getFullYear() === now.getFullYear();
+                }
+            }
+
+            return matchesSearch && matchesType && matchesDate;
         })
         .sort((a, b) => {
             if (!sortField) return 0;
@@ -269,6 +287,30 @@ export function LedgerClient() {
         }
     };
 
+    const totalPages = Math.ceil(filteredAndSortedTransactions.length / itemsPerPage);
+    const paginatedTransactions = filteredAndSortedTransactions.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
+
+    const handleExportCSV = () => {
+        const headers = ["ID", "Date", "Description", "Category", "Amount", "Type", "Status"];
+        const csvContent = [
+            headers.join(","),
+            ...filteredAndSortedTransactions.map(t =>
+                [t.id, t.date, `"${t.description.replace(/"/g, '""')}"`, t.category, t.amount, t.amount > 0 ? "Income" : "Expense", t.status].join(",")
+            )
+        ].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "kolpay_ledger_export.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     return (
         <div ref={viewRef} className="flex h-screen overflow-hidden bg-background">
             <Sidebar />
@@ -279,7 +321,7 @@ export function LedgerClient() {
 
                 <main
                     ref={containerRef}
-                    className="flex-1 px-10 pt-8 pb-20 space-y-8 max-w-[1600px] mx-auto w-full z-0 custom-scrollbar"
+                    className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-10 pt-8 pb-32 lg:pb-20 custom-scrollbar z-0 w-full relative"
                 >
                     {/* Header */}
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-4">
@@ -292,6 +334,7 @@ export function LedgerClient() {
                         </div>
                         <div className="flex gap-4">
                             <motion.button
+                                onClick={handleExportCSV}
                                 whileHover={{ y: -2 }}
                                 whileTap={{ scale: 0.98 }}
                                 className="bg-white text-foreground font-semibold px-6 py-3 rounded-full flex items-center gap-2 hover:-translate-y-0.5 transition-all border border-gray-100 shadow-soft hover:shadow-soft-lg text-sm"
@@ -497,6 +540,19 @@ export function LedgerClient() {
                                     <Filter className="w-5 h-5 text-gray-400 mr-2 pointer-events-none" />
                                     <select
                                         className="bg-transparent outline-none cursor-pointer text-foreground appearance-none pr-4"
+                                        value={dateFilter}
+                                        onChange={(e) => setDateFilter(e.target.value)}
+                                    >
+                                        <option value="All">All Time</option>
+                                        <option value="This Month">This Month</option>
+                                        <option value="Last 30 Days">Last 30 Days</option>
+                                        <option value="Last 7 Days">Last 7 Days</option>
+                                    </select>
+                                </div>
+                                <div className="relative flex items-center bg-gray-50 rounded-full px-5 py-3 text-sm font-semibold focus-within:ring-2 focus-within:ring-primary/50 cursor-pointer transition-all">
+                                    <Filter className="w-5 h-5 text-gray-400 mr-2 pointer-events-none" />
+                                    <select
+                                        className="bg-transparent outline-none cursor-pointer text-foreground appearance-none pr-4"
                                         value={filterType}
                                         onChange={(e) => setFilterType(e.target.value as any)}
                                     >
@@ -527,7 +583,7 @@ export function LedgerClient() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {filteredAndSortedTransactions.map((txn) => (
+                                    {paginatedTransactions.map((txn) => (
                                         <tr key={txn.id} className="hover:bg-gray-50/50 transition-colors group">
                                             <td className="px-6 py-4">
                                                 <span className="text-sm font-semibold text-foreground bg-gray-50 px-3 py-1.5 rounded-full">{txn.id}</span>
@@ -551,8 +607,8 @@ export function LedgerClient() {
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-3">
-                                                    <span className={`text-sm font-bold ${txn.type === 'Income' ? 'text-green-600' : 'text-red-600'}`}>
-                                                        {txn.type === 'Income' ? '+' : '-'}₹{txn.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                    <span className={`text-sm font-bold ${txn.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                        {txn.amount > 0 ? '+' : '-'}₹{Math.abs(txn.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                     </span>
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); deleteTransaction(txn.id); }}
@@ -565,7 +621,7 @@ export function LedgerClient() {
                                             </td>
                                         </tr>
                                     ))}
-                                    {filteredAndSortedTransactions.length === 0 && (
+                                    {paginatedTransactions.length === 0 && (
                                         <tr>
                                             <td colSpan={6} className="px-6 py-12 text-center text-gray-500 text-sm font-semibold">
                                                 No transactions match your filters.
@@ -575,6 +631,30 @@ export function LedgerClient() {
                                 </tbody>
                             </table>
                         </div>
+
+                        {totalPages > 1 && (
+                            <div className="p-6 border-t border-gray-100 flex items-center justify-between bg-gray-50/30">
+                                <span className="text-sm font-medium text-gray-500">
+                                    Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedTransactions.length)} of {filteredAndSortedTransactions.length} entries
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                        className="px-4 py-2 text-sm font-semibold rounded-full border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        Previous
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage === totalPages}
+                                        className="px-4 py-2 text-sm font-semibold rounded-full border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </main>
 

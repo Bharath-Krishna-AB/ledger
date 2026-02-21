@@ -16,6 +16,7 @@ export interface Transaction {
     type: TransactionType;
     amount: number;
     status: "Completed" | "Pending";
+    category_prices?: Record<string, number>;
 }
 
 export interface Account {
