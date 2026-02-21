@@ -1,26 +1,51 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f4f5f7;
+  /* Keep the slightly grey background for the island effect */
+  --foreground: oklch(0.205 0 0);
+  /* secondary */
+  --primary: oklch(0.97 0 0);
+  --secondary: oklch(0.205 0 0);
+  --accent: #703EFF;
+  --accent-light: #EBE4FF;
+  /* Soft purple complementing the accent */
+
+  --card: #ffffff;
+  --card-foreground: oklch(0.205 0 0);
+  --border: #e5e7eb;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-accent-light: var(--accent-light);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #f4f5f7;
+    --foreground: oklch(0.205 0 0);
+    --primary: oklch(0.97 0 0);
+    --secondary: oklch(0.205 0 0);
+    --accent: #703EFF;
+    --accent-light: #EBE4FF;
+
+    --card: #ffffff;
+    --card-foreground: oklch(0.205 0 0);
+    --border: #e5e7eb;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
