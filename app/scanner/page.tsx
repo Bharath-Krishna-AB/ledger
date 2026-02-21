@@ -41,7 +41,7 @@ export default function QRScanner() {
     const scanner = new Html5Qrcode("reader");
     scannerRef.current = scanner;
 
-    scanner.start(
+    const startPromise = scanner.start(
       { facingMode: "environment" },
       { fps: 10, qrbox: 250 },
       async (decodedText) => {
@@ -89,15 +89,23 @@ export default function QRScanner() {
           await scanner.stop().catch(() => {});
         }
       },
-      (errorMessage) => {
+      (_errorMessage) => {
         // Ignoring frame decode errors (these fire continuously until a valid QR is found)
       }
     );
 
     return () => {
-      if (!stoppedRef.current && scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
-      }
+      // Wait for start() to resolve before attempting stop(),
+      // otherwise we get "Cannot stop, scanner is not running" on fast unmounts.
+      startPromise
+        .then(() => {
+          if (!stoppedRef.current) {
+            scanner.stop().catch(() => {});
+          }
+        })
+        .catch(() => {
+          // start failed; nothing to stop
+        });
     };
   }, []);
 
