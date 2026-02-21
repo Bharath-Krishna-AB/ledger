@@ -24,8 +24,6 @@ export default function GenerateUPIQR() {
     const separator = originalUpiUrl.includes("?") ? "&" : "?";
     const finalUrl = `${originalUpiUrl}${separator}bill=${encodedBill}`;
 
-    alert(originalUpiUrl);
-
     QRCode.toDataURL(finalUrl, { width: 260, margin: 1 })
       .then(setQr)
       .catch(console.error);

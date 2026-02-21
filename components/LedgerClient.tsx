@@ -22,27 +22,25 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
-type TransactionType = "Income" | "Expense";
-
 interface Transaction {
     id: string;
     date: string;
     description: string;
-    category: string;
-    type: TransactionType;
+    category_prices?: Record<string, number>;
+    category?: string; // Kept for backwards compatibility just in case
     amount: number;
     status: "Completed" | "Pending";
 }
 
 const initialTransactions: Transaction[] = [
-    { id: "TXN-001", date: "2026-02-21", description: "Product Sale - Premium Plan", category: "Sales", type: "Income", amount: 1250.00, status: "Completed" },
-    { id: "TXN-002", date: "2026-02-20", description: "AWS Hosting", category: "Infrastructure", type: "Expense", amount: 150.00, status: "Completed" },
-    { id: "TXN-003", date: "2026-02-18", description: "Marketing Campaign (FB)", category: "Marketing", type: "Expense", amount: 450.00, status: "Completed" },
-    { id: "TXN-004", date: "2026-02-15", description: "Consulting Services", category: "Services", type: "Income", amount: 3000.00, status: "Completed" },
-    { id: "TXN-005", date: "2026-02-12", description: "Software Subscriptions", category: "Software", type: "Expense", amount: 299.99, status: "Completed" },
-    { id: "TXN-006", date: "2026-02-10", description: "Product Sale - Basic Plan", category: "Sales", type: "Income", amount: 250.00, status: "Completed" },
-    { id: "TXN-007", date: "2026-02-05", description: "Office Supplies", category: "Other", type: "Expense", amount: 55.50, status: "Completed" },
-    { id: "TXN-008", date: "2026-02-01", description: "Monthly Retainer", category: "Services", type: "Income", amount: 5000.00, status: "Completed" },
+    { id: "TXN-001", date: "2026-02-21", description: "Product Sale - Premium Plan", category_prices: { "Sales": 1250.00 }, amount: 1250.00, status: "Completed" },
+    { id: "TXN-002", date: "2026-02-20", description: "AWS Hosting", category_prices: { "Infrastructure": -150.00 }, amount: -150.00, status: "Completed" },
+    { id: "TXN-003", date: "2026-02-18", description: "Marketing Campaign (FB)", category_prices: { "Marketing": -450.00 }, amount: -450.00, status: "Completed" },
+    { id: "TXN-004", date: "2026-02-15", description: "Consulting Services", category_prices: { "Services": 3000.00 }, amount: 3000.00, status: "Completed" },
+    { id: "TXN-005", date: "2026-02-12", description: "Software Subscriptions", category_prices: { "Software": -299.99 }, amount: -299.99, status: "Completed" },
+    { id: "TXN-006", date: "2026-02-10", description: "Product Sale - Basic Plan", category_prices: { "Sales": 250.00 }, amount: 250.00, status: "Completed" },
+    { id: "TXN-007", date: "2026-02-05", description: "Office Supplies", category_prices: { "Other": -55.50 }, amount: -55.50, status: "Completed" },
+    { id: "TXN-008", date: "2026-02-01", description: "Monthly Retainer", category_prices: { "Services": 5000.00 }, amount: 5000.00, status: "Completed" },
 ];
 
 const COLORS = ['#703EFF', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#6B7280'];
@@ -53,21 +51,33 @@ export function LedgerClient() {
 
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
+
+    // Custom categories state
+    const [customCategories, setCustomCategories] = useState<string[]>([
+        "Sales", "Infrastructure", "Marketing", "Software", "Services", "Other", "Food"
+    ]);
+    const [newCategory, setNewCategory] = useState("");
 
     // Form state
     const [desc, setDesc] = useState("");
     const [amt, setAmt] = useState("");
     const [cat, setCat] = useState("Sales");
-    const [txnType, setTxnType] = useState<TransactionType>("Income");
 
     // Filter & Sort state
     const [searchQuery, setSearchQuery] = useState("");
-    const [filterType, setFilterType] = useState<"All" | TransactionType | "Pending">("All");
+    const [filterType, setFilterType] = useState<"All" | "Pending">("All");
     const [sortField, setSortField] = useState<"date" | "amount" | null>("date");
     const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
     useEffect(() => {
         setTransactions(initialTransactions);
+        const storedCats = localStorage.getItem("customCategories");
+        if (storedCats) {
+            try {
+                setCustomCategories(JSON.parse(storedCats));
+            } catch (e) { }
+        }
     }, []);
 
     useEffect(() => {
@@ -87,21 +97,39 @@ export function LedgerClient() {
         }
     }, []);
 
-    const totalIncome = transactions.filter(t => t.type === "Income").reduce((sum, t) => sum + t.amount, 0);
-    const totalExpense = transactions.filter(t => t.type === "Expense").reduce((sum, t) => sum + t.amount, 0);
-    const balance = totalIncome - totalExpense;
+    const totalIncome = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
+    const totalExpense = transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    const balance = transactions.reduce((sum, t) => sum + t.amount, 0);
+
+    const handleAddCategory = () => {
+        if (!newCategory.trim() || customCategories.includes(newCategory.trim())) return;
+        const updated = [...customCategories, newCategory.trim()];
+        setCustomCategories(updated);
+        localStorage.setItem("customCategories", JSON.stringify(updated));
+        setNewCategory("");
+    };
+
+    const handleRemoveCategory = (catToRemove: string) => {
+        const updated = customCategories.filter(c => c !== catToRemove);
+        setCustomCategories(updated);
+        localStorage.setItem("customCategories", JSON.stringify(updated));
+        // Reset default cat if it was removed
+        if (cat === catToRemove) {
+            setCat(updated.length > 0 ? updated[0] : "");
+        }
+    };
 
     const handleAddTransaction = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!desc || !amt) return;
+        if (!desc || !amt || !cat) return;
 
+        const numAmt = parseFloat(amt);
         const newTxn: Transaction = {
             id: `TXN-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
             date: new Date().toISOString().split('T')[0],
             description: desc,
-            category: cat,
-            type: txnType,
-            amount: parseFloat(amt),
+            category_prices: { [cat]: numAmt },
+            amount: numAmt,
             status: "Completed"
         };
 
@@ -115,13 +143,13 @@ export function LedgerClient() {
     const cashFlowData = [...transactions].reduce((acc, txn) => {
         const existing = acc.find(item => item.date === txn.date);
         if (existing) {
-            if (txn.type === 'Income') existing.income += txn.amount;
-            else existing.expense += txn.amount;
+            if (txn.amount > 0) existing.income += txn.amount;
+            else existing.expense += Math.abs(txn.amount);
         } else {
             acc.push({
                 date: txn.date,
-                income: txn.type === 'Income' ? txn.amount : 0,
-                expense: txn.type === 'Expense' ? txn.amount : 0
+                income: txn.amount > 0 ? txn.amount : 0,
+                expense: txn.amount < 0 ? Math.abs(txn.amount) : 0
             });
         }
         return acc;
@@ -129,14 +157,21 @@ export function LedgerClient() {
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     const expenseBreakdownData = transactions
-        .filter(t => t.type === 'Expense')
+        .filter(t => t.amount < 0 && t.category_prices)
         .reduce((acc, txn) => {
-            const existing = acc.find(item => item.name === txn.category);
-            if (existing) {
-                existing.value += txn.amount;
-            } else {
-                acc.push({ name: txn.category, value: txn.amount });
-            }
+            if (!txn.category_prices) return acc;
+
+            Object.entries(txn.category_prices).forEach(([categoryName, amount]) => {
+                // LLM might have returned positive amounts for expenses, or negative.
+                // We'll trust our overarching t.amount sign or Math.abs it.
+                const fallbackAmount = Math.abs(amount);
+                const existing = acc.find(item => item.name === categoryName);
+                if (existing) {
+                    existing.value += fallbackAmount;
+                } else {
+                    acc.push({ name: categoryName, value: fallbackAmount });
+                }
+            });
             return acc;
         }, [] as { name: string, value: number }[])
         .sort((a, b) => b.value - a.value);
@@ -144,13 +179,14 @@ export function LedgerClient() {
     // Filtered & Sorted Transactions
     const filteredAndSortedTransactions = [...transactions]
         .filter(t => {
-            const matchesSearch = t.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                t.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                t.id.toLowerCase().includes(searchQuery.toLowerCase());
+            const searchLower = searchQuery.toLowerCase();
+            const matchesSearch = t.description.toLowerCase().includes(searchLower) ||
+                t.id.toLowerCase().includes(searchLower) ||
+                (t.category_prices && Object.keys(t.category_prices).some(cat => cat.toLowerCase().includes(searchLower))) ||
+                (t.category && t.category.toLowerCase().includes(searchLower));
 
             const matchesType = filterType === "All" ? true :
-                filterType === "Pending" ? t.status === "Pending" :
-                    t.type === filterType;
+                t.status === "Pending";
 
             return matchesSearch && matchesType;
         })
@@ -195,6 +231,14 @@ export function LedgerClient() {
                             <p className="text-gray-500 mt-2">Track income, expenses, and overall balance.</p>
                         </div>
                         <div className="flex gap-3">
+                            <motion.button
+                                onClick={() => setIsCategoriesModalOpen(true)}
+                                whileHover={{ y: -2 }}
+                                whileTap={{ scale: 0.98 }}
+                                className="bg-white text-foreground font-semibold px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-gray-50 transition-all border border-border shadow-sm text-sm"
+                            >
+                                <Filter className="w-4 h-4 text-gray-400" /> Categories
+                            </motion.button>
                             <motion.button
                                 whileHover={{ y: -2 }}
                                 whileTap={{ scale: 0.98 }}
@@ -398,9 +442,7 @@ export function LedgerClient() {
                                         value={filterType}
                                         onChange={(e) => setFilterType(e.target.value as any)}
                                     >
-                                        <option value="All">All Types</option>
-                                        <option value="Income">Income Only</option>
-                                        <option value="Expense">Expense Only</option>
+                                        <option value="All">All Statuses</option>
                                         <option value="Pending">Pending</option>
                                     </select>
                                 </div>
@@ -439,9 +481,17 @@ export function LedgerClient() {
                                                 <p className="text-sm font-semibold text-foreground">{txn.description}</p>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
-                                                    {txn.category}
-                                                </span>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {txn.category_prices ? Object.keys(txn.category_prices).map(catName => (
+                                                        <span key={catName} className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
+                                                            {catName}
+                                                        </span>
+                                                    )) : (
+                                                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
+                                                            {txn.category || "Uncategorized"}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className="flex items-center gap-1.5 text-xs font-medium">
@@ -450,8 +500,8 @@ export function LedgerClient() {
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-right">
-                                                <span className={`text-sm font-bold ${txn.type === 'Income' ? 'text-green-600' : 'text-red-600'}`}>
-                                                    {txn.type === 'Income' ? '+' : '-'}₹{txn.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                <span className={`text-sm font-bold ${txn.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                    {txn.amount >= 0 ? '+' : '-'}₹{Math.abs(txn.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 </span>
                                             </td>
                                         </tr>
@@ -504,23 +554,6 @@ export function LedgerClient() {
                                 </div>
 
                                 <form onSubmit={handleAddTransaction} className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <button
-                                            type="button"
-                                            onClick={() => setTxnType("Income")}
-                                            className={`py-2.5 rounded-xl text-sm font-semibold border transition-all ${txnType === 'Income' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-border text-gray-500 hover:border-gray-300'}`}
-                                        >
-                                            Income
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setTxnType("Expense")}
-                                            className={`py-2.5 rounded-xl text-sm font-semibold border transition-all ${txnType === 'Expense' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-border text-gray-500 hover:border-gray-300'}`}
-                                        >
-                                            Expense
-                                        </button>
-                                    </div>
-
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase">Amount (₹)</label>
                                         <input
@@ -553,12 +586,9 @@ export function LedgerClient() {
                                             onChange={(e) => setCat(e.target.value)}
                                             className="w-full text-sm font-medium p-3 bg-gray-50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all appearance-none"
                                         >
-                                            <option value="Sales">Sales</option>
-                                            <option value="Services">Services</option>
-                                            <option value="Infrastructure">Infrastructure</option>
-                                            <option value="Marketing">Marketing</option>
-                                            <option value="Software">Software</option>
-                                            <option value="Other">Other</option>
+                                            {customCategories.map(c => (
+                                                <option key={c} value={c}>{c}</option>
+                                            ))}
                                         </select>
                                     </div>
 
@@ -574,6 +604,82 @@ export function LedgerClient() {
                     )
                     }
                 </AnimatePresence >
+
+                {/* Categories Management Modal */}
+                <AnimatePresence>
+                    {isCategoriesModalOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center">
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+                                onClick={() => setIsCategoriesModalOpen(false)}
+                            />
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                className="relative bg-white border border-border rounded-[24px] shadow-2xl p-8 w-full max-w-md z-10 mx-4"
+                            >
+                                <button
+                                    onClick={() => setIsCategoriesModalOpen(false)}
+                                    className="absolute top-4 right-4 p-2 text-gray-400 hover:text-foreground hover:bg-gray-100 rounded-full transition-colors"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+
+                                <div className="mb-6 flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center text-accent">
+                                        <Filter className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-foreground">Manage Categories</h2>
+                                        <p className="text-xs text-gray-500 mt-0.5">Customize your ledger categorization</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={newCategory}
+                                            onChange={(e) => setNewCategory(e.target.value)}
+                                            placeholder="New Category Name"
+                                            className="flex-1 text-sm font-medium p-3 bg-gray-50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
+                                        />
+                                        <button
+                                            onClick={handleAddCategory}
+                                            className="bg-accent text-white px-4 rounded-xl font-semibold hover:bg-accent/90 transition-colors"
+                                        >
+                                            Add
+                                        </button>
+                                    </div>
+
+                                    <div className="mt-4 border border-border/80 rounded-xl overflow-hidden max-h-[300px] overflow-y-auto">
+                                        {customCategories.length > 0 ? (
+                                            <ul className="divide-y divide-border/50">
+                                                {customCategories.map((c) => (
+                                                    <li key={c} className="flex items-center justify-between p-3 hover:bg-gray-50">
+                                                        <span className="text-sm font-medium text-gray-700">{c}</span>
+                                                        <button
+                                                            onClick={() => handleRemoveCategory(c)}
+                                                            className="text-red-500 hover:text-red-700 p-1 rounded-md hover:bg-red-50 transition-colors"
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p className="p-4 text-center text-sm text-gray-500">No categories defined.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>
             </div >
         </div >
     );
