@@ -502,23 +502,23 @@ export function LedgerClient() {
 
                 <main
                     ref={containerRef}
-                    className="flex-1 px-10 pt-8 pb-20 space-y-8 max-w-[1600px] mx-auto w-full z-0 custom-scrollbar"
+                    className="flex-1 px-4 sm:px-6 lg:px-10 pt-8 pb-32 lg:pb-20 space-y-8 max-w-[1600px] mx-auto w-full z-0 custom-scrollbar overflow-x-hidden"
                 >
                     {/* Header */}
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-4">
                         <div>
-                            <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-2">Financials</p>
-                            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+                            <p className="text-xs sm:text-sm font-semibold text-primary uppercase tracking-wider mb-2">Financials</p>
+                            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground leading-tight">
                                 Ledger & Bookkeeping
                             </h1>
-                            <p className="text-gray-500 mt-2">Track income, expenses, and overall balance.</p>
+                            <p className="text-xs sm:text-sm text-gray-500 mt-2">Track income, expenses, and overall balance.</p>
                         </div>
-                        <div className="flex gap-4">
+                        <div className="flex flex-col sm:flex-row gap-4">
                             <motion.button
                                 onClick={handleExportCSV}
                                 whileHover={{ y: -2 }}
                                 whileTap={{ scale: 0.98 }}
-                                className="bg-white text-foreground font-semibold px-6 py-3 rounded-full flex items-center gap-2 hover:-translate-y-0.5 transition-all border border-gray-100 shadow-soft hover:shadow-soft-lg text-sm"
+                                className="w-full sm:w-auto bg-white text-foreground font-semibold px-6 py-3 rounded-full flex items-center justify-center gap-2 hover:-translate-y-0.5 transition-all border border-gray-100 shadow-soft hover:shadow-soft-lg text-sm"
                             >
                                 <Download className="w-4 h-4 text-gray-400" /> Export CSV
                             </motion.button>
@@ -526,7 +526,7 @@ export function LedgerClient() {
                                 onClick={() => setIsAddModalOpen(true)}
                                 whileHover={{ y: -2 }}
                                 whileTap={{ scale: 0.98 }}
-                                className="bg-primary text-white font-semibold px-6 py-3 rounded-full flex items-center gap-2 hover:bg-primary/90 transition-all shadow-soft hover:shadow-soft-lg text-sm"
+                                className="w-full sm:w-auto bg-primary text-white font-bold px-6 py-3 rounded-full flex items-center justify-center gap-2 hover:bg-primary/90 transition-all shadow-soft hover:shadow-soft-lg text-sm"
                             >
                                 <Plus className="w-4 h-4" /> Add Entry
                             </motion.button>
@@ -534,52 +534,52 @@ export function LedgerClient() {
                     </div>
 
                     {/* Summary Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-white rounded-[32px] p-8 shadow-soft border border-gray-100 transition-colors group relative overflow-hidden hover:shadow-soft-lg">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="bg-white rounded-[32px] p-6 sm:p-8 shadow-soft border border-gray-100 transition-colors group relative overflow-hidden hover:shadow-soft-lg">
                             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
-                                <Wallet className="w-24 h-24" />
+                                <Wallet className="w-20 h-20 sm:w-24 sm:h-24" />
                             </div>
                             <div className="flex justify-between items-start mb-6 relative z-10">
-                                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                                    <Wallet className="w-6 h-6" />
+                                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                                    <Wallet className="w-5 h-5 sm:w-6 sm:h-6" />
                                 </div>
                             </div>
                             <div className="relative z-10">
-                                <p className="text-gray-500 text-sm font-semibold mb-2">Total Balance</p>
-                                <h2 className="text-4xl font-bold tracking-tight text-foreground">₹{balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h2>
+                                <p className="text-gray-500 text-xs sm:text-sm font-semibold mb-2">Total Balance</p>
+                                <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground truncate">₹{balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h2>
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-[32px] p-8 shadow-soft border border-gray-100 transition-colors group relative overflow-hidden hover:shadow-soft-lg">
+                        <div className="bg-white rounded-[32px] p-6 sm:p-8 shadow-soft border border-gray-100 transition-colors group relative overflow-hidden hover:shadow-soft-lg">
                             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
-                                <TrendingUp className="w-24 h-24" />
+                                <TrendingUp className="w-20 h-20 sm:w-24 sm:h-24" />
                             </div>
                             <div className="flex justify-between items-start mb-6 relative z-10">
-                                <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center text-green-600">
-                                    <TrendingUp className="w-6 h-6" />
+                                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-green-50 flex items-center justify-center text-green-600">
+                                    <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" />
                                 </div>
-                                <span className="flex items-center gap-1 text-xs font-bold text-green-700 bg-green-100 px-3 py-1.5 rounded-full">
+                                <span className="flex items-center gap-1 text-[10px] sm:text-xs font-bold text-green-700 bg-green-100 px-3 py-1.5 rounded-full">
                                     <ArrowUpRight className="w-3 h-3" /> +14%
                                 </span>
                             </div>
                             <div className="relative z-10">
-                                <p className="text-gray-500 text-sm font-semibold mb-2">Total Income (Monthly)</p>
-                                <h2 className="text-3xl font-bold tracking-tight text-foreground">₹{totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h2>
+                                <p className="text-gray-500 text-xs sm:text-sm font-semibold mb-2">Total Income (Monthly)</p>
+                                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground truncate">₹{totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h2>
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-[32px] p-8 shadow-soft border border-gray-100 transition-colors group relative overflow-hidden hover:shadow-soft-lg">
+                        <div className="bg-white rounded-[32px] p-6 sm:p-8 shadow-soft border border-gray-100 transition-colors group relative overflow-hidden hover:shadow-soft-lg sm:col-span-2 lg:col-span-1">
                             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
-                                <TrendingDown className="w-24 h-24" />
+                                <TrendingDown className="w-20 h-20 sm:w-24 sm:h-24" />
                             </div>
                             <div className="flex justify-between items-start mb-6 relative z-10">
-                                <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-600">
-                                    <TrendingDown className="w-6 h-6" />
+                                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-red-50 flex items-center justify-center text-red-600">
+                                    <TrendingDown className="w-5 h-5 sm:w-6 sm:h-6" />
                                 </div>
                             </div>
                             <div className="relative z-10">
-                                <p className="text-gray-500 text-sm font-semibold mb-2">Total Expenses (Monthly)</p>
-                                <h2 className="text-3xl font-bold tracking-tight text-foreground">₹{totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h2>
+                                <p className="text-gray-500 text-xs sm:text-sm font-semibold mb-2">Total Expenses (Monthly)</p>
+                                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground truncate">₹{totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h2>
                             </div>
                         </div>
                     </div>
@@ -587,16 +587,16 @@ export function LedgerClient() {
                     {/* Analytics & Insights Section */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
                         {/* Cash Flow Chart */}
-                        <div className="lg:col-span-2 bg-white rounded-[32px] border border-gray-100 shadow-soft p-8 flex flex-col">
-                            <div className="flex items-center justify-between mb-8">
+                        <div className="lg:col-span-2 bg-white rounded-[32px] border border-gray-100 shadow-soft p-6 sm:p-8 flex flex-col">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                                 <div>
                                     <h2 className="text-xl font-bold text-foreground">Cash Flow Trend</h2>
-                                    <p className="text-sm font-semibold text-gray-500">Income vs Expenses over time</p>
+                                    <p className="text-xs sm:text-sm font-semibold text-gray-500">Income vs Expenses over time</p>
                                 </div>
                                 <select
                                     value={dateFilter}
                                     onChange={(e) => setDateFilter(e.target.value as any)}
-                                    className="bg-gray-50 border-none rounded-full px-5 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
+                                    className="bg-gray-50 border-none rounded-full px-5 py-2.5 text-xs sm:text-sm font-semibold outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer w-full sm:w-auto"
                                 >
                                     <option value="All">All Time</option>
                                     <option value="Last 30 Days">Last 30 Days</option>
@@ -658,7 +658,7 @@ export function LedgerClient() {
                             </div>
 
                             {/* Expense Breakdown */}
-                            <div className="bg-white rounded-[32px] border border-gray-100 shadow-soft p-8 flex-1 flex flex-col">
+                            <div className="bg-white rounded-[32px] border border-gray-100 shadow-soft p-6 sm:p-8 flex-1 flex flex-col">
                                 <h3 className="text-lg font-bold text-foreground mb-6">Expense Breakdown</h3>
                                 {expenseBreakdownData.length > 0 ? (
                                     <div className="flex-1 flex flex-col justify-center relative">
@@ -728,29 +728,29 @@ export function LedgerClient() {
 
                     {/* Transactions Table Section */}
                     <div className="bg-white rounded-[32px] border border-gray-100 shadow-soft flex flex-col overflow-hidden mt-8">
-                        <div className="p-8 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                        <div className="p-6 sm:p-8 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                             <h2 className="text-xl font-bold text-foreground flex items-center gap-3">
-                                <Receipt className="w-6 h-6 text-primary" /> Recent Transactions
+                                <Receipt className="w-6 h-6 text-primary" /> Transactions
                             </h2>
-                            <div className="flex items-center gap-4">
-                                <div className="relative">
+                            <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+                                <div className="relative w-full sm:w-72">
                                     <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
                                     <input
                                         type="text"
                                         placeholder="Search ledger..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="py-3 pl-11 pr-5 text-sm font-semibold bg-gray-50 border-none rounded-full focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all w-72"
+                                        className="py-3 pl-11 pr-5 text-sm font-semibold bg-gray-50 border-none rounded-full focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all w-full"
                                     />
                                 </div>
-                                <div className="relative flex items-center bg-gray-50 rounded-full px-5 py-3 text-sm font-semibold focus-within:ring-2 focus-within:ring-primary/50 cursor-pointer transition-all">
+                                <div className="relative flex items-center bg-gray-50 rounded-full px-5 py-3 text-sm font-semibold focus-within:ring-2 focus-within:ring-primary/50 cursor-pointer transition-all w-full sm:w-auto">
                                     <Filter className="w-5 h-5 text-gray-400 mr-2 pointer-events-none" />
                                     <select
-                                        className="bg-transparent outline-none cursor-pointer text-foreground appearance-none pr-4"
+                                        className="bg-transparent outline-none cursor-pointer text-foreground appearance-none pr-4 w-full sm:w-auto"
                                         value={filterType}
                                         onChange={(e) => setFilterType(e.target.value as any)}
                                     >
-                                        <option value="All">All Categories/Statuses</option>
+                                        <option value="All">All Categories</option>
                                         <option value="Pending">Pending</option>
                                         <optgroup label="Categories">
                                             {customCategories.map(c => (
@@ -761,12 +761,12 @@ export function LedgerClient() {
                                 </div>
                             </div>
                         </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
+                        <div className="overflow-x-auto custom-scrollbar -mx-4 sm:mx-0">
+                            <table className="w-full text-left border-collapse min-w-[800px] lg:min-w-0">
                                 <thead>
-                                    <tr className="bg-gray-50/50 text-xs uppercase tracking-wider text-gray-500 font-semibold border-b border-border/50">
+                                    <tr className="bg-gray-50/50 text-[10px] sm:text-xs uppercase tracking-wider text-gray-400 font-bold border-b border-gray-50">
                                         <th className="px-6 py-4">Transaction ID</th>
-                                        <th className="px-6 py-4 cursor-pointer hover:text-accent select-none" onClick={() => handleSort("date")}>
+                                        <th className="px-6 py-4 cursor-pointer hover:text-primary select-none" onClick={() => handleSort("date")}>
                                             <div className="flex items-center gap-1">
                                                 Date {sortField === "date" && (sortDirection === "asc" ? "↑" : "↓")}
                                             </div>
@@ -774,7 +774,7 @@ export function LedgerClient() {
                                         <th className="px-6 py-4">Description</th>
                                         <th className="px-6 py-4">Category</th>
                                         <th className="px-6 py-4">Status</th>
-                                        <th className="px-6 py-4 text-right cursor-pointer hover:text-accent select-none" onClick={() => handleSort("amount")}>
+                                        <th className="px-6 py-4 text-right cursor-pointer hover:text-primary select-none" onClick={() => handleSort("amount")}>
                                             <div className="flex items-center justify-end gap-1">
                                                 Amount {sortField === "amount" && (sortDirection === "asc" ? "↑" : "↓")}
                                             </div>
@@ -890,13 +890,12 @@ export function LedgerClient() {
                                             onClick={isRecording ? stopRecording : startRecording}
                                             title="Use Voice AI"
                                             disabled={isProcessingVoice}
-                                            className={`relative flex items-center justify-center w-10 h-10 rounded-full transition-all shadow-soft overflow-hidden group ${
-                                                isRecording
-                                                    ? 'bg-red-50 text-red-600 border border-red-200 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
-                                                    : isProcessingVoice
-                                                        ? 'bg-gray-100 text-gray-500 border border-gray-200 cursor-not-allowed'
-                                                        : 'bg-primary/10 text-primary hover:bg-primary/20 hover:scale-105'
-                                            }`}
+                                            className={`relative flex items-center justify-center w-10 h-10 rounded-full transition-all shadow-soft overflow-hidden group ${isRecording
+                                                ? 'bg-red-50 text-red-600 border border-red-200 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                                                : isProcessingVoice
+                                                    ? 'bg-gray-100 text-gray-500 border border-gray-200 cursor-not-allowed'
+                                                    : 'bg-primary/10 text-primary hover:bg-primary/20 hover:scale-105'
+                                                }`}
                                         >
                                             {isRecording && (
                                                 <span className="absolute inset-0 bg-red-100/50 animate-pulse rounded-full" />

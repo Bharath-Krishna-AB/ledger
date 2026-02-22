@@ -202,27 +202,27 @@ export function ScannerClient() {
 
                 <Header />
 
-                <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-12 pt-8 pb-32 lg:pb-20 custom-scrollbar z-0 w-full relative">
+                <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-10 pt-8 pb-32 lg:pb-20 custom-scrollbar z-0 w-full relative overflow-x-hidden">
                     <div ref={viewRef} className="max-w-4xl mx-auto space-y-8">
                         <div className="mb-8 lg:mb-10 text-center">
                             <div className="inline-flex items-center justify-center w-12 h-12 lg:w-16 lg:h-16 rounded-2xl bg-primary/10 mb-4 lg:mb-6">
                                 <ScanFace className="w-6 h-6 lg:w-8 lg:h-8 text-primary" />
                             </div>
-                            <h1 className="text-3xl lg:text-4xl font-bold tracking-tight text-foreground mb-3 px-4">Smart Receipt Scanner</h1>
-                            <p className="text-sm lg:text-base text-gray-500 max-w-xl mx-auto font-medium px-4">Point your camera at a supported vendor invoice or QR code. We'll automatically digitize the receipt and log it to your ledger.</p>
+                            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-foreground mb-3 px-4 leading-tight">Smart Receipt Scanner</h1>
+                            <p className="text-xs sm:text-sm lg:text-base text-gray-500 max-w-xl mx-auto font-medium px-4">Point your camera at a supported vendor invoice or QR code. We'll automatically digitize the receipt and log it to your ledger.</p>
                         </div>
 
-                        <div className="bg-white border border-gray-100 shadow-soft rounded-[32px] overflow-hidden relative min-h-[400px] lg:min-h-[500px] flex flex-col items-center justify-center p-4 lg:p-8 w-full">
+                        <div className="bg-white border border-gray-100 shadow-soft rounded-[32px] overflow-hidden relative min-h-[350px] sm:min-h-[400px] lg:min-h-[500px] flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 w-full">
 
                             {error && (
-                                <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-red-50 text-red-600 px-6 py-3 rounded-full text-sm font-semibold shadow-soft z-50 animate-in slide-in-from-top-4">
+                                <div className="absolute top-4 sm:top-8 left-1/2 -translate-x-1/2 bg-red-50 text-red-600 px-6 py-3 rounded-full text-xs sm:text-sm font-semibold shadow-soft z-50 animate-in slide-in-from-top-4 w-[90%] sm:w-auto text-center">
                                     {error}
                                 </div>
                             )}
 
                             {!generatedQr && !isProcessing && (
                                 <div className="w-full h-full flex flex-col items-center justify-center space-y-6">
-                                    <div className="relative w-full max-w-[400px] aspect-square rounded-[32px] lg:rounded-[40px] overflow-hidden shadow-inner border-4 border-gray-50">
+                                    <div className="relative w-full max-w-[300px] sm:max-w-[400px] aspect-square rounded-[32px] lg:rounded-[40px] overflow-hidden shadow-inner border-4 border-gray-50 bg-black">
                                         {/* The #reader div where html5-qrcode injects the video stream */}
                                         <div id="reader" className="w-full h-full object-cover rounded-[36px]" />
 
@@ -236,25 +236,25 @@ export function ScannerClient() {
                                             </div>
                                         </div>
                                     </div>
-                                    <p className="text-sm font-semibold text-gray-400 uppercase tracking-widest animate-pulse">Waiting for QR Code...</p>
+                                    <p className="text-[10px] sm:text-sm font-semibold text-gray-400 uppercase tracking-widest animate-pulse">Waiting for QR Code...</p>
                                 </div>
                             )}
 
                             {isProcessing && !generatedQr && (
-                                <div className="flex flex-col items-center justify-center space-y-4">
-                                    <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center animate-bounce">
-                                        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+                                <div className="flex flex-col items-center justify-center space-y-4 py-12">
+                                    <div className="w-16 h-16 sm:w-20 sm:h-20 bg-primary/10 rounded-full flex items-center justify-center animate-bounce">
+                                        <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-primary animate-spin" />
                                     </div>
-                                    <h3 className="text-xl font-bold text-foreground">Processing Receipt...</h3>
-                                    <p className="text-sm text-gray-500 font-medium">Extracting data and matching categories.</p>
+                                    <h3 className="text-lg sm:text-xl font-bold text-foreground">Processing Receipt...</h3>
+                                    <p className="text-xs sm:text-sm text-gray-500 font-medium">Extracting data and matching categories.</p>
                                 </div>
                             )}
 
                             {generatedQr && parsedBill && (
-                                <div className="flex w-full flex-col lg:flex-row gap-12 items-center justify-center animate-in zoom-in-95 duration-500">
+                                <div className="flex w-full flex-col lg:flex-row gap-8 lg:gap-12 items-center justify-center animate-in zoom-in-95 duration-500 py-4">
 
                                     {/* Digital Receipt Card */}
-                                    <div className="w-full max-w-sm bg-gray-50 border border-gray-100 rounded-[32px] p-8 shadow-inner relative">
+                                    <div className="w-full max-w-sm bg-gray-50 border border-gray-100 rounded-[32px] p-6 sm:p-8 shadow-inner relative">
                                         <div className="absolute -top-4 -left-4 w-12 h-12 bg-green-500 rounded-full flex items-center justify-center shadow-lg transform -rotate-12 outline-4 outline-white">
                                             <CheckCircle2 className="w-6 h-6 text-white" />
                                         </div>
@@ -265,12 +265,12 @@ export function ScannerClient() {
                                             <p className="text-xs text-gray-500 mt-1">{parsedBill.date}</p>
                                         </div>
 
-                                        <div className="space-y-4 mb-6">
+                                        <div className="space-y-3 sm:space-y-4 mb-6">
                                             {parsedBill.items && parsedBill.items.map((item: any, idx: number) => (
-                                                <div key={idx} className="flex justify-between items-start text-sm">
-                                                    <div>
-                                                        <p className="font-semibold text-gray-900">{item.n}</p>
-                                                        <p className="text-xs text-gray-500">Qty: {item.q}</p>
+                                                <div key={idx} className="flex justify-between items-start text-[13px] sm:text-sm">
+                                                    <div className="max-w-[70%]">
+                                                        <p className="font-bold text-gray-900 leading-tight">{item.n}</p>
+                                                        <p className="text-[10px] sm:text-xs text-gray-500">Qty: {item.q}</p>
                                                     </div>
                                                     <p className="font-bold text-gray-900">₹{(item.p * item.q).toLocaleString()}</p>
                                                 </div>
@@ -278,15 +278,15 @@ export function ScannerClient() {
                                         </div>
 
                                         <div className="pt-4 border-t border-gray-200 border-solid space-y-2">
-                                            <div className="flex justify-between text-sm text-gray-500">
+                                            <div className="flex justify-between text-[13px] sm:text-sm text-gray-500">
                                                 <span>Subtotal</span>
-                                                <span>₹{parsedBill.subtotal?.toLocaleString() || "0"}</span>
+                                                <span className="font-semibold">₹{parsedBill.subtotal?.toLocaleString() || "0"}</span>
                                             </div>
-                                            <div className="flex justify-between text-sm text-gray-500">
+                                            <div className="flex justify-between text-[13px] sm:text-sm text-gray-500">
                                                 <span>Tax</span>
-                                                <span>₹{parsedBill.tax?.toLocaleString() || "0"}</span>
+                                                <span className="font-semibold">₹{parsedBill.tax?.toLocaleString() || "0"}</span>
                                             </div>
-                                            <div className="flex justify-between text-lg font-bold text-gray-900 mt-2 pt-2 border-t border-gray-900">
+                                            <div className="flex justify-between text-base sm:text-lg font-bold text-gray-900 mt-2 pt-2 border-t border-gray-900">
                                                 <span>Total Paid</span>
                                                 <span>₹{parsedBill.total?.toLocaleString() || "0"}</span>
                                             </div>
@@ -294,18 +294,18 @@ export function ScannerClient() {
                                     </div>
 
                                     {/* Clean Payment QR */}
-                                    <div className="flex flex-col items-center text-center max-w-xs">
-                                        <div className="bg-white p-4 rounded-3xl shadow-soft-lg mb-6">
-                                            <img src={generatedQr} alt="Cleaned Payment QR" className="w-[220px] h-[220px] object-contain rounded-xl" />
+                                    <div className="flex flex-col items-center text-center max-w-xs w-full">
+                                        <div className="bg-white p-3 sm:p-4 rounded-[32px] shadow-soft-lg mb-6 group-hover:scale-105 transition-transform">
+                                            <img src={generatedQr} alt="Cleaned Payment QR" className="w-[180px] h-[180px] sm:w-[220px] sm:h-[220px] object-contain rounded-2xl" />
                                         </div>
-                                        <h4 className="font-bold text-lg text-foreground mb-2">Ready for Payment</h4>
-                                        <p className="text-sm text-gray-500 font-medium mb-6">The receipt data has been securely logged. You can now scan this clean QR with your UPI app to complete the payment.</p>
+                                        <h4 className="font-bold text-lg text-foreground mb-2">Payment Ready</h4>
+                                        <p className="text-xs sm:text-sm text-gray-500 font-medium mb-6 px-2">Data logged securely. Scan this QR with any UPI app to pay.</p>
 
                                         <button
                                             onClick={() => window.location.reload()}
-                                            className="w-full bg-black text-white rounded-full py-4 text-sm font-bold shadow-soft hover:shadow-soft-lg hover:bg-gray-800 transition-all flex justify-center items-center gap-2"
+                                            className="w-full bg-black text-white rounded-full py-4 text-sm font-bold shadow-soft hover:shadow-soft-lg hover:bg-gray-800 transition-all flex justify-center items-center gap-2 group"
                                         >
-                                            Scan Another <ArrowRight className="w-4 h-4" />
+                                            Scan Another <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                         </button>
                                     </div>
 
