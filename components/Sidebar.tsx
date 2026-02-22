@@ -12,7 +12,6 @@ import {
   ReceiptText,
   PieChart,
   User,
-  Eye,
   CreditCard,
   Building2,
   ScanFace
@@ -103,12 +102,7 @@ export function Sidebar() {
           })}
         </nav>
 
-        <div className="mt-8 px-6 flex flex-col gap-3">
-          <button className="flex items-center justify-center gap-2 w-full bg-accent text-black font-semibold rounded-full py-3 hover:-translate-y-0.5 hover:shadow-soft transition-all text-sm">
-            <Eye className="w-4 h-4" />
-            Live Preview
-          </button>
-        </div>
+
       </aside>
 
       {/* Mobile Bottom Navigation */}

@@ -49,17 +49,17 @@ export async function updateSession(request: NextRequest) {
         request.nextUrl.pathname.startsWith('/ledger') ||
         request.nextUrl.pathname.startsWith('/analytics') ||
         request.nextUrl.pathname.startsWith('/budgets') ||
-        request.nextUrl.pathname.startsWith('/accounts')
+        request.nextUrl.pathname.startsWith('/accounts') ||
+        request.nextUrl.pathname.startsWith('/generator') ||
+        request.nextUrl.pathname.startsWith('/scanner')
 
-    // Temporarily disable protected routes to allow dynamic data building without login
-    /*
     if (isProtectedRoute && !user) {
         // no user, potentially respond by redirecting the user to the login page
         const url = request.nextUrl.clone()
         url.pathname = '/login'
         return NextResponse.redirect(url)
     }
-    */
+
 
     return supabaseResponse
 }

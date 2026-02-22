@@ -1,11 +1,15 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { Search, Bell, Menu } from "lucide-react";
+import { Search, Bell, Menu, LogOut, User } from "lucide-react";
+import { createClient } from "@/utils/supabase/client";
+import { signOut } from "@/app/login/actions";
 
 export function Header() {
     const headerRef = useRef<HTMLElement>(null);
+    const [user, setUser] = useState<any>(null);
+    const supabase = createClient();
 
     useEffect(() => {
         gsap.fromTo(
@@ -13,6 +17,12 @@ export function Header() {
             { y: -10, opacity: 0 },
             { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }
         );
+
+        const getUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            setUser(user);
+        };
+        getUser();
     }, []);
 
     return (
@@ -40,16 +50,39 @@ export function Header() {
                     <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
                 </button>
 
-                <div className="flex items-center gap-3 cursor-pointer group bg-white shadow-soft rounded-full pl-3 pr-1 py-1 hover:shadow-soft-lg transition-all border border-gray-50">
-                    <div className="text-right hidden sm:block">
-                        <p className="text-sm font-semibold text-black leading-tight">Admin</p>
-                        <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Free Tier</p>
+                <div className="flex items-center gap-3 bg-white shadow-soft rounded-full pl-3 pr-1 py-1 border border-gray-50">
+                    <div className="text-right hidden sm:block px-2">
+                        <p className="text-sm font-semibold text-black leading-tight max-w-[120px] truncate">
+                            {user?.email?.split('@')[0] || "Guest"}
+                        </p>
+                        <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">
+                            {user ? "Pro User" : "Visitor"}
+                        </p>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center">
-                        <span className="text-black text-xs font-bold font-kol">OS</span>
+
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center">
+                            <span className="text-white text-xs font-bold font-kol">
+                                {user?.email?.[0].toUpperCase() || "G"}
+                            </span>
+                        </div>
+
+                        {user && (
+                            <button
+                                onClick={async () => {
+                                    setUser(null);
+                                    await signOut();
+                                }}
+                                className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
+                                title="Logout"
+                            >
+                                <LogOut className="w-4 h-4" />
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
         </header>
     );
 }
+

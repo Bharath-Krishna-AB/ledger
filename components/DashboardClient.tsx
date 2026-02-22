@@ -245,46 +245,49 @@ export function DashboardClient() {
                         {/* 5. Recent Transactions */}
                         <div className="bg-white border border-gray-100 shadow-soft p-8 rounded-[32px] mt-6">
                             <div className="flex items-center justify-between mb-8">
-                                <h3 className="text-xl font-bold text-gray-900 tracking-tight">Recent Txns</h3>
-                                <button className="text-sm font-semibold text-gray-500 hover:text-black transition-colors" onClick={() => window.location.href = '/ledger'}>
-                                    Go to Ledger &rarr;
+                                <h3 className="text-xl font-bold text-gray-900 tracking-tight">Recent Transactions</h3>
+                                <button className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-2" onClick={() => window.location.href = '/ledger'}>
+                                    Go to Ledger <ArrowRight className="w-4 h-4" />
                                 </button>
                             </div>
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
+                                <table className="w-full text-left border-separate border-spacing-y-2">
                                     <thead>
-                                        <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                                            <th className="px-6 py-4">Txn ID</th>
-                                            <th className="px-6 py-4">Description</th>
-                                            <th className="px-6 py-4">Category</th>
-                                            <th className="px-6 py-4">Amount</th>
-                                            <th className="px-6 py-4">Type</th>
+                                        <tr className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-6">
+                                            <th className="px-6 py-2">Entity / Description</th>
+                                            <th className="px-6 py-2">Category</th>
+                                            <th className="px-6 py-2">Status</th>
+                                            <th className="px-6 py-2 text-right">Amount</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-50">
+                                    <tbody className="divide-y-0">
                                         {recentTransactions.map((txn, i) => (
-                                            <tr key={i} className="hover:bg-gray-50/50 transition-colors group">
-                                                <td className="px-6 py-4">
-                                                    <span className="text-xs font-mono font-medium text-gray-400 group-hover:text-gray-900">{txn.id.substring(0, 8)}</span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-sm font-semibold text-gray-900">{txn.description}</span>
-                                                        <span className="text-[10px] font-medium text-gray-400">{new Date(txn.date).toLocaleDateString()}</span>
+                                            <tr key={i} className="hover:bg-gray-50 transition-all group rounded-2xl">
+                                                <td className="px-6 py-4 bg-gray-50/30 first:rounded-l-2xl">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${txn.amount > 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                                                            {txn.amount > 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-sm font-bold text-gray-900 line-clamp-1">{txn.description}</span>
+                                                            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-tight">{new Date(txn.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                                        </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4">
-                                                    <span className="text-[10px] font-semibold uppercase text-gray-600 bg-gray-100 px-2 py-1 rounded-full">{txn.category}</span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className="font-bold text-sm text-gray-900">
-                                                        {txn.amount > 0 ? '+' : '-'}₹{Math.abs(txn.amount).toLocaleString()}
+                                                <td className="px-6 py-4 bg-gray-50/30">
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-white border border-gray-100 px-3 py-1.5 rounded-full shadow-sm">
+                                                        {txn.category}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4">
-                                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] uppercase font-bold ${txn.amount > 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
-                                                        }`}>
-                                                        {txn.amount > 0 ? 'Income' : 'Expense'}
+                                                <td className="px-6 py-4 bg-gray-50/30">
+                                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter ${txn.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                        <span className={`w-1.5 h-1.5 rounded-full ${txn.status === 'Completed' ? 'bg-green-500' : 'bg-amber-500'} animate-pulse`}></span>
+                                                        {txn.status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 bg-gray-50/30 last:rounded-r-2xl text-right">
+                                                    <span className={`font-space font-bold text-base ${txn.amount > 0 ? 'text-green-600' : 'text-gray-900'}`}>
+                                                        {txn.amount > 0 ? '+' : ''}₹{Math.abs(txn.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                     </span>
                                                 </td>
                                             </tr>
@@ -292,6 +295,15 @@ export function DashboardClient() {
                                     </tbody>
                                 </table>
                             </div>
+                            {transactions.length === 0 && (
+                                <div className="py-20 text-center">
+                                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
+                                        <Receipt className="w-8 h-8" />
+                                    </div>
+                                    <p className="text-gray-500 font-semibold text-sm">No transactions found.</p>
+                                    <button className="mt-4 text-primary text-xs font-bold hover:underline" onClick={() => window.location.href = '/ledger'}>Add your first entry &rarr;</button>
+                                </div>
+                            )}
                         </div>
 
                     </div>

@@ -17,6 +17,8 @@ export interface Transaction {
     amount: number;
     status: "Completed" | "Pending";
     category_prices?: Record<string, number>;
+    invoice_ref?: string;
+    source?: 'manual' | 'scan' | 'voice';
 }
 
 export interface Account {
@@ -112,7 +114,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
             const possibleErrors = [txnRes.error, accRes.error, bgtRes.error, subRes.error, goalsRes.error].filter(Boolean);
             if (possibleErrors.length > 0) {
-                setDbError(possibleErrors.map(e => e?.message).join(" | "));
+                const errorMessage = possibleErrors.map(e => e?.message).join(" | ");
+                console.error("Database Error:", errorMessage);
+                setDbError(errorMessage);
                 return;
             }
 
