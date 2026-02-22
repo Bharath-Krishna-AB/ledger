@@ -34,7 +34,10 @@ export async function updateSession(request: NextRequest) {
         data: { user },
     } = await supabase.auth.getUser()
 
-    const isAuthRoute = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/signup')
+    const isAuthRoute =
+        request.nextUrl.pathname.startsWith('/login') ||
+        request.nextUrl.pathname.startsWith('/signup') ||
+        request.nextUrl.pathname.startsWith('/auth/callback')
 
     if (isAuthRoute) {
         if (user) {
@@ -43,23 +46,12 @@ export async function updateSession(request: NextRequest) {
         return supabaseResponse;
     }
 
-    // Define protected routes mapping
-    const isProtectedRoute =
-        request.nextUrl.pathname === '/' ||
-        request.nextUrl.pathname.startsWith('/ledger') ||
-        request.nextUrl.pathname.startsWith('/analytics') ||
-        request.nextUrl.pathname.startsWith('/budgets') ||
-        request.nextUrl.pathname.startsWith('/accounts') ||
-        request.nextUrl.pathname.startsWith('/generator') ||
-        request.nextUrl.pathname.startsWith('/scanner')
-
-    if (isProtectedRoute && !user) {
-        // no user, potentially respond by redirecting the user to the login page
+    // Default to strict protection for all other routes
+    if (!user) {
         const url = request.nextUrl.clone()
         url.pathname = '/login'
         return NextResponse.redirect(url)
     }
-
 
     return supabaseResponse
 }

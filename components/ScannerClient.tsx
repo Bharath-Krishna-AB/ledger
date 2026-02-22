@@ -8,6 +8,7 @@ import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { ScanFace, Receipt, CheckCircle2, Loader2, ArrowRight } from "lucide-react";
 import { processMockScan, ScannedReceipt } from "@/app/warranty/actions";
+import { useFinance } from "@/context/FinanceContext";
 
 async function saveToIndexedDB(records: any | any[]) {
     return new Promise<void>((resolve, reject) => {
@@ -40,9 +41,12 @@ async function saveToIndexedDB(records: any | any[]) {
 }
 
 export function ScannerClient() {
+    const { syncExternalTransactions } = useFinance();
     const viewRef = useRef<HTMLDivElement>(null);
     const scannerRef = useRef<Html5Qrcode | null>(null);
     const stoppedRef = useRef(false);
+    // Use a ref for the processing guard so changes don't retrigger the scanner useEffect
+    const isProcessingRef = useRef(false);
 
     const [generatedQr, setGeneratedQr] = useState<string | null>(null);
     const [parsedBill, setParsedBill] = useState<any>(null);
@@ -67,10 +71,18 @@ export function ScannerClient() {
 
                 await scanner.start(
                     { facingMode: "environment" },
-                    { fps: 10, qrbox: 250 },
+                    {
+                        // Higher fps = faster detection. qrbox as a fraction keeps it centred
+                        // without needing a fixed pixel size that might be too large on mobile.
+                        fps: 15,
+                        qrbox: { width: 250, height: 250 },
+                        aspectRatio: 1.0,
+                    },
                     async (decodedText) => {
-                        if (stoppedRef.current || isProcessing) return;
+                        // Use ref guard to avoid re-running if already processing
+                        if (stoppedRef.current || isProcessingRef.current) return;
                         stoppedRef.current = true;
+                        isProcessingRef.current = true;
                         setIsProcessing(true);
                         setError(null);
 
@@ -83,7 +95,6 @@ export function ScannerClient() {
                                 const decodedBill = JSON.parse(decodeURIComponent(billString));
                                 setParsedBill(decodedBill);
 
-                                // Simulate/Perform API Call
                                 const res = await fetch("/api/ledger/transactions", {
                                     method: "POST",
                                     headers: { "Content-Type": "application/json" },
@@ -97,6 +108,7 @@ export function ScannerClient() {
 
                                 const savedTx = await res.json();
                                 await saveToIndexedDB(savedTx);
+                                syncExternalTransactions(savedTx);
 
                                 // --- Warranty Tracker Integration ---
                                 // Map the decoded QR receipt format to the Expected Warranty format
@@ -105,7 +117,9 @@ export function ScannerClient() {
                                     merchant_id: decodedBill.merchant_id || "UNKNOWN",
                                     transaction_id: decodedBill.invoice || `TXN-${Date.now()}`,
                                     payment_date: decodedBill.date || new Date().toISOString().split('T')[0],
-                                    total: decodedBill.total || 0,
+                                    total: decodedBill.total || (
+                                        (decodedBill.items ? decodedBill.items.reduce((acc: number, item: any) => acc + (item.p * item.q), 0) : 0) + (decodedBill.tax || 0)
+                                    ),
                                     currency: "INR",
                                     items: decodedBill.items ? decodedBill.items.map((item: any) => ({
                                         name: item.n || "Unknown Item",
@@ -140,19 +154,19 @@ export function ScannerClient() {
                             } else {
                                 setError("No bill data found in this QR code.");
                                 stoppedRef.current = false;
+                                isProcessingRef.current = false;
                                 setIsProcessing(false);
                             }
                         } catch (err) {
                             console.error("Invalid QR:", err);
                             setError("Failed to process the QR Code. Please try again.");
                             await scanner.stop().catch(() => { });
-                            // We don't reset stoppedRef here because scanner is stopped on error.
-                            // To retry, user will need to refresh/reset component logic (not implemented yet for simplicity, but good for future).
+                            isProcessingRef.current = false;
                             setIsProcessing(false);
                         }
                     },
-                    (errorMessage) => {
-                        // Ignore standard decode failures
+                    () => {
+                        // Suppress per-frame decode failure noise
                     }
                 );
             } catch (err) {
@@ -161,10 +175,10 @@ export function ScannerClient() {
             }
         };
 
-        // Delay start slightly to ensure DOM is ready and animations run smoothly
+        // Short delay to let the DOM & animations settle before camera kicks in
         const timer = setTimeout(() => {
             if (!generatedQr) initScanner();
-        }, 500);
+        }, 300);
 
         return () => {
             clearTimeout(timer);
@@ -172,7 +186,10 @@ export function ScannerClient() {
                 scannerRef.current.stop().catch(() => { });
             }
         };
-    }, [generatedQr, isProcessing]);
+        // ⚠️ Intentionally exclude `isProcessing` from deps – we use isProcessingRef
+        // so that state changes do NOT restart the scanner mid-session.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [generatedQr]);
 
 
     return (

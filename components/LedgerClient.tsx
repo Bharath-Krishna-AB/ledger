@@ -51,7 +51,7 @@ export function LedgerClient() {
 
     // Filter & Sort state
     const [searchQuery, setSearchQuery] = useState("");
-    const [filterType, setFilterType] = useState<"All" | "Income" | "Expense" | "Pending">("All");
+    const [filterType, setFilterType] = useState<string>("All"); // Expanded from strictly "All" | "Income" | "Expense" | "Pending" to allow any custom category string
     const [sortField, setSortField] = useState<"date" | "amount" | null>("date");
     const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
     const [dateFilter, setDateFilter] = useState<"All" | "Last 7 Days" | "Last 30 Days" | "This Month">("All");
@@ -74,6 +74,14 @@ export function LedgerClient() {
     const [voiceItems, setVoiceItems] = useState<any[]>([]);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
+
+    // Speech-to-text State
+    const [isListening, setIsListening] = useState(false);
+    const recognitionRef = useRef<any>(null);
+
+    const toggleListening = () => {
+        setIsListening(!isListening);
+    };
 
     // Voice Recording Handlers
     const startRecording = async () => {
@@ -251,7 +259,7 @@ export function LedgerClient() {
 
         addTransaction({
             date: new Date().toISOString().split('T')[0],
-            description: desc,
+            description: desc.trim(),
             category: cat,
             type: txnType,
             amount: parseFloat(amt),
@@ -352,21 +360,42 @@ export function LedgerClient() {
     };
 
     // Derived Data for Charts
-    const cashFlowData = [...transactions].reduce((acc, txn) => {
-        const existing = acc.find(item => item.date === txn.date);
-        if (existing) {
-            if (txn.amount > 0) existing.income += txn.amount;
-            else existing.expense += Math.abs(txn.amount);
-        } else {
-            acc.push({
-                date: txn.date,
-                income: txn.amount > 0 ? txn.amount : 0,
-                expense: txn.amount < 0 ? Math.abs(txn.amount) : 0
-            });
-        }
-        return acc;
-    }, [] as { date: string, income: number, expense: number }[])
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const getFilteredCashFlowData = () => {
+        let maxDays = Infinity;
+        if (dateFilter === "Last 7 Days") maxDays = 7;
+        if (dateFilter === "Last 30 Days") maxDays = 30;
+
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        const recentTxns = transactions.filter(t => {
+            const txnDate = new Date(t.date);
+            if (dateFilter === "This Month") return txnDate >= startOfMonth;
+
+            const diffTime = Math.abs(now.getTime() - txnDate.getTime());
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return diffDays <= maxDays;
+        });
+
+        const dailyData = recentTxns.reduce((acc, txn) => {
+            const date = txn.date;
+            if (!acc[date]) acc[date] = { income: 0, expense: 0 };
+            if (txn.amount > 0) acc[date].income += txn.amount;
+            else acc[date].expense += Math.abs(txn.amount);
+            return acc;
+        }, {} as Record<string, { income: number, expense: number }>);
+
+        return Object.entries(dailyData)
+            .map(([date, data]) => ({ date, ...data }))
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    };
+
+    const cashFlowData = getFilteredCashFlowData();
+
+    // Reset pagination to 1 when search or filter changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, filterType]);
 
     const expenseBreakdownData = transactions
         .filter(t => t.amount < 0 && t.category_prices)
@@ -398,7 +427,10 @@ export function LedgerClient() {
                 (t.category && t.category.toLowerCase().includes(searchLower));
 
             const matchesType = filterType === "All" ? true :
-                t.status === "Pending";
+                filterType === "Pending" ? t.status === "Pending" :
+                    filterType === "Income" ? t.type === "Income" :
+                        filterType === "Expense" ? t.type === "Expense" :
+                            t.category === filterType || (t.category_prices && Object.keys(t.category_prices).includes(filterType));
 
             let matchesDate = true;
             if (dateFilter !== "All") {
@@ -561,10 +593,15 @@ export function LedgerClient() {
                                     <h2 className="text-xl font-bold text-foreground">Cash Flow Trend</h2>
                                     <p className="text-sm font-semibold text-gray-500">Income vs Expenses over time</p>
                                 </div>
-                                <select className="bg-gray-50 border-none rounded-full px-5 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer">
-                                    <option>Last 30 Days</option>
-                                    <option>Last Quarter</option>
-                                    <option>This Year</option>
+                                <select
+                                    value={dateFilter}
+                                    onChange={(e) => setDateFilter(e.target.value as any)}
+                                    className="bg-gray-50 border-none rounded-full px-5 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
+                                >
+                                    <option value="All">All Time</option>
+                                    <option value="Last 30 Days">Last 30 Days</option>
+                                    <option value="Last 7 Days">Last 7 Days</option>
+                                    <option value="This Month">This Month</option>
                                 </select>
                             </div>
                             <div className="flex-1 min-h-[250px] w-full">
@@ -637,7 +674,18 @@ export function LedgerClient() {
                                                         stroke="none"
                                                     >
                                                         {expenseBreakdownData.map((entry, index) => (
-                                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                            <Cell
+                                                                key={`cell-${index}`}
+                                                                fill={filterType === entry.name ? COLORS[index % COLORS.length] : filterType === "All" || filterType === "Pending" ? COLORS[index % COLORS.length] : '#E5E7EB'}
+                                                                style={{ cursor: 'pointer', transition: 'all 0.3s ease', transformOrigin: 'center', transform: filterType === entry.name ? 'scale(1.05)' : 'scale(1)' }}
+                                                                onClick={() => {
+                                                                    if (filterType === entry.name) {
+                                                                        setFilterType("All");
+                                                                    } else {
+                                                                        setFilterType(entry.name as any);
+                                                                    }
+                                                                }}
+                                                            />
                                                         ))}
                                                     </Pie>
                                                     <RechartsTooltip
@@ -649,10 +697,20 @@ export function LedgerClient() {
                                         </div>
                                         <div className="mt-4 space-y-3 max-h-[120px] overflow-y-auto pr-2 custom-scrollbar">
                                             {expenseBreakdownData.map((entry, index) => (
-                                                <div key={index} className="flex items-center justify-between text-sm">
+                                                <div
+                                                    key={index}
+                                                    className={`flex items-center justify-between text-sm p-2 rounded-xl cursor-pointer transition-colors ${filterType === entry.name ? 'bg-gray-100 ring-1 ring-gray-200' : 'hover:bg-gray-50'}`}
+                                                    onClick={() => {
+                                                        if (filterType === entry.name) {
+                                                            setFilterType("All");
+                                                        } else {
+                                                            setFilterType(entry.name as any);
+                                                        }
+                                                    }}
+                                                >
                                                     <div className="flex items-center gap-3">
                                                         <span className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
-                                                        <span className="text-gray-600 font-semibold truncate max-w-[100px]" title={entry.name}>{entry.name}</span>
+                                                        <span className={`font-semibold truncate max-w-[100px] ${filterType === entry.name ? 'text-foreground' : 'text-gray-600'}`} title={entry.name}>{entry.name}</span>
                                                     </div>
                                                     <span className="font-bold text-foreground">₹{entry.value.toLocaleString()}</span>
                                                 </div>
@@ -692,8 +750,13 @@ export function LedgerClient() {
                                         value={filterType}
                                         onChange={(e) => setFilterType(e.target.value as any)}
                                     >
-                                        <option value="All">All Statuses</option>
+                                        <option value="All">All Categories/Statuses</option>
                                         <option value="Pending">Pending</option>
+                                        <optgroup label="Categories">
+                                            {customCategories.map(c => (
+                                                <option key={c} value={c}>{c}</option>
+                                            ))}
+                                        </optgroup>
                                     </select>
                                 </div>
                             </div>
@@ -926,15 +989,33 @@ export function LedgerClient() {
                                         </div>
 
                                         <div>
-                                            <label className="block text-xs font-bold text-gray-700 mb-2 uppercase tracking-wide">Description</label>
-                                            <input
-                                                type="text"
-                                                value={desc}
-                                                onChange={(e) => setDesc(e.target.value)}
-                                                placeholder="e.g. Server costs, Product Sale"
-                                                className="w-full text-sm font-semibold p-3 px-5 bg-gray-50 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all shadow-soft-inner"
-                                                required
-                                            />
+                                            <div className="flex items-center justify-between mb-2">
+                                                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide">Description</label>
+                                                {isListening && (
+                                                    <span className="flex items-center gap-1.5 text-xs font-bold text-red-500 animate-pulse">
+                                                        <div className="w-2 h-2 rounded-full bg-red-500"></div> Listening...
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    value={desc}
+                                                    onChange={(e) => setDesc(e.target.value)}
+                                                    placeholder="e.g. Server costs, Product Sale"
+                                                    className="w-full text-sm font-semibold p-3 px-5 pr-12 bg-gray-50 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all shadow-soft-inner"
+                                                    required
+                                                />
+                                                {recognitionRef.current && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={toggleListening}
+                                                        className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full transition-colors ${isListening ? 'bg-red-100 text-red-500' : 'text-gray-400 hover:text-primary hover:bg-primary/10'}`}
+                                                    >
+                                                        {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
 
                                         <div>
@@ -972,12 +1053,9 @@ export function LedgerClient() {
                                                     }}
                                                     className={`w-full text-sm font-semibold p-3 px-5 pr-10 bg-gray-50 border rounded-full focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all appearance-none shadow-soft-inner ${showAiBadge ? 'border-primary shadow-[0_0_0_2px_rgba(112,62,255,0.1)]' : 'border-gray-200 focus:border-primary'}`}
                                                 >
-                                                    <option value="Sales">Sales</option>
-                                                    <option value="Services">Services</option>
-                                                    <option value="Infrastructure">Infrastructure</option>
-                                                    <option value="Marketing">Marketing</option>
-                                                    <option value="Software">Software</option>
-                                                    <option value="Other">Other</option>
+                                                    {customCategories.map((c) => (
+                                                        <option key={c} value={c}>{c}</option>
+                                                    ))}
                                                 </select>
                                                 <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
                                                     <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>

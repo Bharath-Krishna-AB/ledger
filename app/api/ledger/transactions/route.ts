@@ -36,8 +36,8 @@ export async function POST(req: NextRequest) {
     }
 
     const totalAmount = rawItems.length > 0
-      ? rawItems.reduce((s, it) => s + it.p * it.q, 0)
-      : (bill.total ?? bill.totalAmount ?? 0);
+      ? rawItems.reduce((s, it) => s + it.p * it.q, 0) + (bill.tax || 0)
+      : (bill.total || bill.totalAmount || 0);
 
     const primaryCategory = Object.entries(categoryPrices).sort((a, b) => b[1] - a[1])[0]?.[0]
       ?? customCategories[0];
@@ -53,18 +53,32 @@ export async function POST(req: NextRequest) {
         description: it.n,
         category: itemCategories[it.n] ?? primaryCategory,
         type: "Expense",
-        amount: it.p * it.q,
+        amount: -(Math.abs(it.p * it.q)), // always negative – scanned bills are expenses
         status: "Completed",
         invoice_ref: bill.invoice ?? null,
         source: "scan",
       }));
+
+      // Add Tax row if present
+      if (bill.tax && bill.tax > 0) {
+        transactionPayloads.push({
+          date: bill.date ?? new Date().toISOString().split("T")[0],
+          description: "Tax",
+          category: primaryCategory,
+          type: "Expense",
+          amount: -(Math.abs(bill.tax)),
+          status: "Completed",
+          invoice_ref: bill.invoice ?? null,
+          source: "scan",
+        });
+      }
     } else {
       transactionPayloads = [{
         date: bill.date ?? new Date().toISOString().split("T")[0],
         description: bill.invoice ?? "Scanned Receipt",
         category: primaryCategory,
         type: "Expense",
-        amount: totalAmount,
+        amount: -(Math.abs(totalAmount)), // always negative – scanned bills are expenses
         status: "Completed",
         invoice_ref: bill.invoice ?? null,
         source: "scan",
