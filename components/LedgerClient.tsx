@@ -54,6 +54,9 @@ export function LedgerClient() {
     const [filterType, setFilterType] = useState<"All" | "Income" | "Expense" | "Pending">("All");
     const [sortField, setSortField] = useState<"date" | "amount" | null>("date");
     const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+    const [dateFilter, setDateFilter] = useState<"All" | "Last 7 Days" | "Last 30 Days" | "This Month">("All");
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 8;
 
     // AI Categorizer State
     const [isAutoCategorizing, setIsAutoCategorizing] = useState(false);

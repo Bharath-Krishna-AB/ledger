@@ -30,8 +30,6 @@ export interface Transaction {
     source?: TransactionSource;
     items?: TransactionItem[];
     category_prices?: Record<string, number>;
-    invoice_ref?: string;
-    source?: 'manual' | 'scan' | 'voice';
 }
 
 export interface Account {
@@ -143,6 +141,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // Initial Load from Supabase — join transaction_items
     useEffect(() => {
         const loadData = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                // If not logged in, just mark loaded and return to allow redirects or rendering
+                setIsLoaded(true);
+                return;
+            }
+
             const [txnRes, accRes, bgtRes, subRes, goalsRes] = await Promise.all([
                 supabase
                     .from('transactions')
