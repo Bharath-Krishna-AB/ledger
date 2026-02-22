@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
         description: it.n,
         category: itemCategories[it.n] ?? primaryCategory,
         type: "Expense",
-        amount: it.p * it.q,
+        amount: -(Math.abs(it.p * it.q)), // always negative – scanned bills are expenses
         status: "Completed",
         invoice_ref: bill.invoice ?? null,
         source: "scan",
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
         description: bill.invoice ?? "Scanned Receipt",
         category: primaryCategory,
         type: "Expense",
-        amount: totalAmount,
+        amount: -(Math.abs(totalAmount)), // always negative – scanned bills are expenses
         status: "Completed",
         invoice_ref: bill.invoice ?? null,
         source: "scan",
