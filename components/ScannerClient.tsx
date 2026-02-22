@@ -7,6 +7,7 @@ import gsap from "gsap";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { ScanFace, Receipt, CheckCircle2, Loader2, ArrowRight } from "lucide-react";
+import { useFinance } from "@/context/FinanceContext";
 
 async function saveToIndexedDB(records: any | any[]) {
     return new Promise<void>((resolve, reject) => {
@@ -39,6 +40,7 @@ async function saveToIndexedDB(records: any | any[]) {
 }
 
 export function ScannerClient() {
+    const { syncExternalTransactions } = useFinance();
     const viewRef = useRef<HTMLDivElement>(null);
     const scannerRef = useRef<Html5Qrcode | null>(null);
     const stoppedRef = useRef(false);
@@ -96,6 +98,7 @@ export function ScannerClient() {
 
                                 const savedTx = await res.json();
                                 await saveToIndexedDB(savedTx);
+                                syncExternalTransactions(savedTx);
 
                                 params.delete("bill");
 
