@@ -118,26 +118,26 @@ export function DashboardClient() {
                     <div ref={viewRef} className="max-w-6xl mx-auto space-y-12">
 
                         {/* 1. Net Worth Summary */}
-                        <div className="bg-white border border-gray-100 shadow-soft p-8 md:p-12 relative overflow-hidden rounded-[32px]">
+                        <div className="bg-white border border-gray-100 shadow-soft p-6 sm:p-8 md:p-12 relative overflow-hidden rounded-[32px]">
                             <div className="absolute right-0 bottom-0 p-8 opacity-5 pointer-events-none">
-                                <Landmark className="w-72 h-72 text-gray-900 translate-x-12 translate-y-12" />
+                                <Landmark className="w-48 h-48 md:w-72 md:h-72 text-gray-900 translate-x-12 translate-y-12" />
                             </div>
                             <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
                                 <div>
-                                    <h1 className="text-xl font-semibold text-gray-500 tracking-tight mb-2">Total Net Worth</h1>
-                                    <div className="flex items-baseline gap-4 mt-2">
-                                        <h2 className="text-[64px] font-bold text-gray-900 tracking-tight leading-none">₹{netWorth.toLocaleString()}</h2>
-                                        <span className="inline-flex items-center text-xs font-bold font-space uppercase text-green-700 bg-green-50 px-3 py-1.5 rounded-full">
-                                            <TrendingUp className="w-4 h-4 mr-2" />
+                                    <h1 className="text-sm sm:text-base font-semibold text-gray-500 tracking-tight mb-2">Total Net Worth</h1>
+                                    <div className="flex flex-col sm:flex-row sm:items-baseline gap-3 sm:gap-4 mt-2">
+                                        <h2 className="text-4xl sm:text-5xl md:text-[64px] font-bold text-gray-900 tracking-tight leading-none">₹{netWorth.toLocaleString()}</h2>
+                                        <span className="inline-flex items-center text-[10px] font-bold font-space uppercase text-green-700 bg-green-50 px-3 py-1.5 rounded-full w-fit">
+                                            <TrendingUp className="w-3.5 h-3.5 mr-2" />
                                             +4.2% Since last month
                                         </span>
                                     </div>
-                                    <p className="text-sm text-gray-500 font-medium mt-6 max-w-lg">
+                                    <p className="text-xs sm:text-sm text-gray-500 font-medium mt-6 max-w-lg">
                                         Your overall financial health across all connected accounts. {cashFlowText}
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-4 shrink-0">
-                                    <button className="bg-black text-white rounded-full px-6 py-3 text-sm font-semibold hover:bg-gray-800 shadow-soft hover:shadow-soft-lg transition-all" onClick={() => window.location.href = '/ledger'}>
+                                    <button className="w-full sm:w-auto bg-black text-white rounded-full px-8 py-3.5 text-sm font-bold hover:bg-gray-800 shadow-soft hover:shadow-soft-lg transition-all" onClick={() => window.location.href = '/ledger'}>
                                         View Ledger
                                     </button>
                                 </div>
@@ -145,23 +145,23 @@ export function DashboardClient() {
                         </div>
 
                         {/* 2. Quick Finance Metrics */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                             {[
                                 { title: "Net Balance", value: `₹${netWorth.toLocaleString()}`, trend: "Live Data", isPositive: true, icon: Landmark, cardColor: "bg-white", iconBg: "bg-gray-50 text-gray-700" },
                                 { title: "30-Day Income", value: `₹${monthlyIncome.toLocaleString()}`, trend: incomeTrend, isPositive: parseFloat(incomeTrend) >= 0, icon: TrendingUp, cardColor: "bg-white", iconBg: "bg-accent/30 text-green-700" },
                                 { title: "30-Day Expenses", value: `₹${monthlyExpenses.toLocaleString()}`, trend: expenseTrend, isPositive: parseFloat(expenseTrend) <= 0, icon: TrendingDown, cardColor: "bg-white", iconBg: "bg-red-50 text-red-600" },
                             ].map((stat, i) => (
-                                <div key={i} className={`${stat.cardColor} border border-gray-100 shadow-soft p-6 rounded-[32px] hover:shadow-soft-lg transition-all duration-300 relative overflow-hidden`}>
-                                    <div className="flex justify-between items-start mb-6">
-                                        <div className={`w-12 h-12 rounded-full ${stat.iconBg} flex items-center justify-center transition-all duration-300`}>
-                                            <stat.icon className="w-5 h-5" />
+                                <div key={i} className={`${stat.cardColor} border border-gray-100 shadow-soft p-5 sm:p-6 rounded-[32px] hover:shadow-soft-lg transition-all duration-300 relative overflow-hidden`}>
+                                    <div className="flex justify-between items-start mb-4 sm:mb-6">
+                                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${stat.iconBg} flex items-center justify-center transition-all duration-300`}>
+                                            <stat.icon className="w-4 h-4 sm:w-5 sm:h-5" />
                                         </div>
-                                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${stat.isPositive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                                        <span className={`text-[9px] sm:text-[10px] font-bold px-2 py-1 rounded-full ${stat.isPositive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
                                             {stat.trend}
                                         </span>
                                     </div>
-                                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">{stat.title}</p>
-                                    <h3 className="text-3xl font-bold text-gray-900">{stat.value}</h3>
+                                    <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1 sm:mb-2">{stat.title}</p>
+                                    <h3 className="text-2xl sm:text-3xl font-bold text-gray-900">{stat.value}</h3>
                                 </div>
                             ))}
                         </div>
@@ -243,15 +243,15 @@ export function DashboardClient() {
                         </div>
 
                         {/* 5. Recent Transactions */}
-                        <div className="bg-white border border-gray-100 shadow-soft p-8 rounded-[32px] mt-6">
-                            <div className="flex items-center justify-between mb-8">
+                        <div className="bg-white border border-gray-100 shadow-soft p-6 sm:p-8 rounded-[32px] mt-6">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                                 <h3 className="text-xl font-bold text-gray-900 tracking-tight">Recent Transactions</h3>
-                                <button className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-2" onClick={() => window.location.href = '/ledger'}>
+                                <button className="text-sm font-bold text-primary hover:text-primary/80 transition-colors flex items-center gap-2 w-fit" onClick={() => window.location.href = '/ledger'}>
                                     Go to Ledger <ArrowRight className="w-4 h-4" />
                                 </button>
                             </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left border-separate border-spacing-y-2">
+                            <div className="overflow-x-auto custom-scrollbar -mx-4 sm:mx-0">
+                                <table className="w-full text-left border-separate border-spacing-y-2 min-w-[600px] sm:min-w-0">
                                     <thead>
                                         <tr className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-6">
                                             <th className="px-6 py-2">Entity / Description</th>

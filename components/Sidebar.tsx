@@ -109,14 +109,14 @@ export function Sidebar() {
 
       {/* Mobile Bottom Navigation */}
       <div className="lg:hidden fixed bottom-6 left-6 right-6 bg-white/90 backdrop-blur-xl border border-white shadow-soft-lg rounded-full py-3 px-6 flex items-center justify-between z-50">
-        {navItems.filter(item => item.label !== "Settings" && item.label !== "Profile").map((item, i) => {
+        {navItems.map((item, i) => {
           const isActive = pathname === item.href;
           return (
             <Link
               key={i}
               href={item.href || "#"}
               className={clsx(
-                "flex flex-col items-center justify-center gap-1 p-2 rounded-xl transition-all",
+                "flex flex-col items-center justify-center gap-1 rounded-xl transition-all",
                 isActive ? "text-primary" : "text-gray-400 hover:text-black hover:bg-gray-50 delay-75"
               )}
             >
