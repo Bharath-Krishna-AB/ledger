@@ -7,15 +7,28 @@ import { createClient } from '@/utils/supabase/client';
 // --- Types ---
 
 export type TransactionType = "Income" | "Expense";
+export type TransactionSource = "manual" | "scan" | "voice";
+
+export interface TransactionItem {
+    id: string;
+    txn_id: string;
+    name: string;
+    quantity: number;
+    unit_price: number;
+    category: string;
+}
 
 export interface Transaction {
     id: string;
     date: string;
     description: string;
-    category: string;
+    category: string;        // top-level / primary category
     type: TransactionType;
     amount: number;
     status: "Completed" | "Pending";
+    invoice_ref?: string;
+    source?: TransactionSource;
+    items?: TransactionItem[];
     category_prices?: Record<string, number>;
 }
 
@@ -72,7 +85,7 @@ interface FinanceContextType {
     subscriptions: Subscription[];
     goals: Goal[];
 
-    addTransaction: (txn: Omit<Transaction, "id" | "status">) => void;
+    addTransaction: (txn: Omit<Transaction, "id" | "status">) => Promise<void>;
     addAccount: (acc: Omit<Account, "id">) => void;
     addBudget: (bgt: Omit<Budget, "id" | "spent" | "overBudget">) => void;
     addSubscription: (sub: Omit<Subscription, "id">) => void;
@@ -89,6 +102,32 @@ interface FinanceContextType {
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
+function mapItem(raw: any): TransactionItem {
+    return {
+        id: raw.id,
+        txn_id: raw.txn_id,
+        name: raw.name,
+        quantity: Number(raw.quantity),
+        unit_price: Number(raw.unit_price),
+        category: raw.category,
+    };
+}
+
+function mapTransaction(raw: any): Transaction {
+    const items: TransactionItem[] = (raw.transaction_items ?? []).map(mapItem);
+    // Derive category_prices from items if present
+    const category_prices: Record<string, number> = {};
+    for (const item of items) {
+        category_prices[item.category] = (category_prices[item.category] ?? 0) + item.unit_price * item.quantity;
+    }
+    return {
+        ...raw,
+        amount: Number(raw.amount),
+        items,
+        category_prices: Object.keys(category_prices).length > 0 ? category_prices : undefined,
+    };
+}
+
 export function FinanceProvider({ children }: { children: ReactNode }) {
     const supabase = createClient();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -99,11 +138,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const [isLoaded, setIsLoaded] = useState(false);
     const [dbError, setDbError] = useState<string | null>(null);
 
-    // Initial Load from Supabase
+    // Initial Load from Supabase — join transaction_items
     useEffect(() => {
         const loadData = async () => {
             const [txnRes, accRes, bgtRes, subRes, goalsRes] = await Promise.all([
-                supabase.from('transactions').select('*').order('created_at', { ascending: false }),
+                supabase
+                    .from('transactions')
+                    .select('*, transaction_items(*)')
+                    .order('created_at', { ascending: false }),
                 supabase.from('accounts').select('*').order('created_at', { ascending: true }),
                 supabase.from('budgets').select('*').order('created_at', { ascending: true }),
                 supabase.from('subscriptions').select('*').order('created_at', { ascending: false }),
@@ -116,22 +158,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 return;
             }
 
-            // Map NUMERIC string responses to numbers safely
-            if (txnRes.data) {
-                setTransactions(txnRes.data.map(t => ({ ...t, amount: Number(t.amount) })));
-            }
-            if (accRes.data) {
-                setAccounts(accRes.data.map(a => ({ ...a, balance: Number(a.balance), limit: a.limit ? Number(a.limit) : undefined })));
-            }
-            if (bgtRes.data) {
-                setBudgets(bgtRes.data.map(b => ({ ...b, allocated: Number(b.allocated), spent: Number(b.spent) })));
-            }
-            if (subRes.data) {
-                setSubscriptions(subRes.data.map(s => ({ ...s, amount: Number(s.amount) })));
-            }
-            if (goalsRes.data) {
-                setGoals(goalsRes.data.map(g => ({ ...g, target_amount: Number(g.target_amount), current_amount: Number(g.current_amount) })));
-            }
+            if (txnRes.data) setTransactions(txnRes.data.map(mapTransaction));
+            if (accRes.data) setAccounts(accRes.data.map(a => ({ ...a, balance: Number(a.balance), limit: a.limit ? Number(a.limit) : undefined })));
+            if (bgtRes.data) setBudgets(bgtRes.data.map(b => ({ ...b, allocated: Number(b.allocated), spent: Number(b.spent) })));
+            if (subRes.data) setSubscriptions(subRes.data.map(s => ({ ...s, amount: Number(s.amount) })));
+            if (goalsRes.data) setGoals(goalsRes.data.map(g => ({ ...g, target_amount: Number(g.target_amount), current_amount: Number(g.current_amount) })));
 
             setIsLoaded(true);
         };
@@ -140,56 +171,87 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
     // Actions
     const addTransaction = async (txnData: Omit<Transaction, "id" | "status">) => {
+        // Compute amount from items if provided, else use txnData.amount directly
+        const items = txnData.items ?? [];
+        const computedAmount = items.length > 0
+            ? items.reduce((sum, it) => sum + it.unit_price * it.quantity, 0)
+            : Math.abs(txnData.amount);
+
+        // Primary category: first item's category, or txnData.category
+        const primaryCategory = items[0]?.category ?? txnData.category;
+
         const { data, error } = await supabase.from('transactions').insert([{
             date: txnData.date,
             description: txnData.description,
-            category: txnData.category,
+            category: primaryCategory,
             type: txnData.type,
-            amount: txnData.amount,
-            status: 'Completed'
+            amount: computedAmount,
+            status: 'Completed',
+            invoice_ref: txnData.invoice_ref ?? null,
+            source: txnData.source ?? 'manual',
         }]).select().single();
 
-        if (data) {
-            const newTxn = { ...data, amount: Number(data.amount) };
-            setTransactions(prev => [newTxn, ...prev]);
-
-            // Smart Budget integration: Update spent amounts
-            const matchedBudget = budgets.find(b =>
-                txnData.category === b.name ||
-                (txnData.category === "Software" && b.name === "Tech Subscriptions") ||
-                (txnData.category === "Services" && b.name === "Housing & Utilities")
-            );
-
-            if (matchedBudget) {
-                const newSpent = matchedBudget.spent + txnData.amount;
-                const overBudget = newSpent > matchedBudget.allocated;
-                const { data: bgtData } = await supabase.from('budgets')
-                    .update({ spent: newSpent, overBudget })
-                    .eq('id', matchedBudget.id)
-                    .select().single();
-
-                if (bgtData) {
-                    const updatedBgt = { ...bgtData, allocated: Number(bgtData.allocated), spent: Number(bgtData.spent) };
-                    setBudgets(prev => prev.map(b => b.id === updatedBgt.id ? updatedBgt : b));
-                }
-            }
-
-            // Adjust primary account balance
-            const primaryAcc = accounts.find(a => a.type === 'Checking');
-            if (primaryAcc) {
-                const newBalance = primaryAcc.balance + (txnData.type === 'Income' ? txnData.amount : -txnData.amount);
-                const { data: accData } = await supabase.from('accounts')
-                    .update({ balance: newBalance })
-                    .eq('id', primaryAcc.id)
-                    .select().single();
-
-                if (accData) {
-                    const updatedAcc = { ...accData, balance: Number(accData.balance), limit: accData.limit ? Number(accData.limit) : undefined };
-                    setAccounts(prev => prev.map(a => a.id === updatedAcc.id ? updatedAcc : a));
-                }
-            }
-        } else if (error) {
+        if (error || !data) {
             console.error("Failed to insert transaction:", error);
+            return;
+        }
+
+        // Insert child items
+        let savedItems: TransactionItem[] = [];
+        if (items.length > 0) {
+            const { data: itemData, error: itemError } = await supabase
+                .from('transaction_items')
+                .insert(items.map(it => ({
+                    txn_id: data.id,
+                    name: it.name,
+                    quantity: it.quantity,
+                    unit_price: it.unit_price,
+                    category: it.category,
+                })))
+                .select();
+
+            if (itemError) console.error("Failed to insert transaction items:", itemError);
+            if (itemData) savedItems = itemData.map(mapItem);
+        }
+
+        const newTxn = mapTransaction({ ...data, transaction_items: savedItems });
+        setTransactions(prev => [newTxn, ...prev]);
+
+        // Smart Budget integration
+        const matchedBudget = budgets.find(b =>
+            primaryCategory === b.name ||
+            (primaryCategory === "Software" && b.name === "Tech Subscriptions") ||
+            (primaryCategory === "Services" && b.name === "Housing & Utilities")
+        );
+
+        if (matchedBudget) {
+            const newSpent = matchedBudget.spent + computedAmount;
+            const overBudget = newSpent > matchedBudget.allocated;
+            const { data: bgtData } = await supabase.from('budgets')
+                .update({ spent: newSpent, overBudget })
+                .eq('id', matchedBudget.id)
+                .select().single();
+
+            if (bgtData) {
+                const updatedBgt = { ...bgtData, allocated: Number(bgtData.allocated), spent: Number(bgtData.spent) };
+                setBudgets(prev => prev.map(b => b.id === updatedBgt.id ? updatedBgt : b));
+            }
+        }
+
+        // Adjust primary account balance
+        const primaryAcc = accounts.find(a => a.type === 'Checking');
+        if (primaryAcc) {
+            const delta = txnData.type === 'Income' ? computedAmount : -computedAmount;
+            const newBalance = primaryAcc.balance + delta;
+            const { data: accData } = await supabase.from('accounts')
+                .update({ balance: newBalance })
+                .eq('id', primaryAcc.id)
+                .select().single();
+
+            if (accData) {
+                const updatedAcc = { ...accData, balance: Number(accData.balance), limit: accData.limit ? Number(accData.limit) : undefined };
+                setAccounts(prev => prev.map(a => a.id === updatedAcc.id ? updatedAcc : a));
+            }
         }
     };
 
@@ -227,6 +289,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     };
 
     const deleteTransaction = async (id: string) => {
+        // CASCADE on the DB will also delete transaction_items
         await supabase.from('transactions').delete().eq('id', id);
         setTransactions(prev => prev.filter(t => t.id !== id));
     };
@@ -253,17 +316,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
     const getIconComponent = (iconName: string): React.ElementType => {
         const iconMap: Record<string, React.ElementType> = {
-            "Building2": Building2,
-            "Landmark": Landmark,
-            "CreditCard": CreditCard,
-            "Wallet": Wallet,
-            "HomeIcon": HomeIcon,
-            "Coffee": Coffee,
-            "MonitorSmartphone": MonitorSmartphone,
-            "Plane": Plane,
-            "ShoppingBag": ShoppingBag,
-            "Target": Target,
-            "Activity": Activity
+            "Building2": Building2, "Landmark": Landmark, "CreditCard": CreditCard,
+            "Wallet": Wallet, "HomeIcon": HomeIcon, "Coffee": Coffee,
+            "MonitorSmartphone": MonitorSmartphone, "Plane": Plane,
+            "ShoppingBag": ShoppingBag, "Target": Target, "Activity": Activity
         };
         return iconMap[iconName] || Wallet;
     };
@@ -279,25 +335,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
     if (!isLoaded) return null;
 
-    console.log("FinanceContext loaded data:", { transactions, accounts, budgets, subscriptions, goals });
-
     return (
         <FinanceContext.Provider value={{
-            transactions,
-            accounts,
-            budgets,
-            subscriptions,
-            goals,
-            addTransaction,
-            addAccount,
-            addBudget,
-            addSubscription,
-            addGoal,
-            deleteTransaction,
-            deleteAccount,
-            deleteBudget,
-            deleteSubscription,
-            deleteGoal,
+            transactions, accounts, budgets, subscriptions, goals,
+            addTransaction, addAccount, addBudget, addSubscription, addGoal,
+            deleteTransaction, deleteAccount, deleteBudget, deleteSubscription, deleteGoal,
             getIconComponent
         }}>
             {children}
