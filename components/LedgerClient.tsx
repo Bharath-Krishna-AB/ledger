@@ -75,6 +75,14 @@ export function LedgerClient() {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
 
+    // Speech-to-text State
+    const [isListening, setIsListening] = useState(false);
+    const recognitionRef = useRef<any>(null);
+
+    const toggleListening = () => {
+        setIsListening(!isListening);
+    };
+
     // Voice Recording Handlers
     const startRecording = async () => {
         try {

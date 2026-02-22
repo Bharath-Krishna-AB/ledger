@@ -86,6 +86,7 @@ interface FinanceContextType {
     goals: Goal[];
 
     addTransaction: (txn: Omit<Transaction, "id" | "status">) => Promise<void>;
+    syncExternalTransactions: (txns: Transaction[]) => void;
     addAccount: (acc: Omit<Account, "id">) => void;
     addBudget: (bgt: Omit<Budget, "id" | "spent" | "overBudget">) => void;
     addSubscription: (sub: Omit<Subscription, "id">) => void;
@@ -272,6 +273,60 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    const syncExternalTransactions = async (txns: Transaction[]) => {
+        if (!txns || txns.length === 0) return;
+
+        // 1. Add to local transaction state
+        setTransactions(prev => [...txns, ...prev]);
+
+        // 2. Synthesize total amount and primary category for budget/account sync
+        const totalComputedAmount = txns.reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+        // Assume all scanned items in a batch belong to a similar major event, use the first item's category
+        const primaryCategory = txns[0]?.category || 'Other';
+        const type = txns[0]?.type || 'Expense'; // Scans are usually expenses
+
+        // 3. Smart Budget integration
+        const matchedBudget = budgets.find(b =>
+            primaryCategory === b.name ||
+            (primaryCategory === "Software" && b.name === "Tech Subscriptions") ||
+            (primaryCategory === "Services" && b.name === "Housing & Utilities")
+        );
+
+        if (matchedBudget) {
+            const newSpent = matchedBudget.spent + totalComputedAmount;
+            const overBudget = newSpent > matchedBudget.allocated;
+
+            // Sync budget to Supabase visually based on new calc
+            const { data: bgtData } = await supabase.from('budgets')
+                .update({ spent: newSpent, overBudget })
+                .eq('id', matchedBudget.id)
+                .select().single();
+
+            if (bgtData) {
+                const updatedBgt = { ...bgtData, allocated: Number(bgtData.allocated), spent: Number(bgtData.spent) };
+                setBudgets(prev => prev.map(b => b.id === updatedBgt.id ? updatedBgt : b));
+            }
+        }
+
+        // 4. Adjust primary account balance
+        const primaryAcc = accounts.find(a => a.type === 'Checking');
+        if (primaryAcc) {
+            const delta = type === 'Income' ? totalComputedAmount : -totalComputedAmount;
+            const newBalance = primaryAcc.balance + delta;
+
+            // Sync account balance to Supabase
+            const { data: accData } = await supabase.from('accounts')
+                .update({ balance: newBalance })
+                .eq('id', primaryAcc.id)
+                .select().single();
+
+            if (accData) {
+                const updatedAcc = { ...accData, balance: Number(accData.balance), limit: accData.limit ? Number(accData.limit) : undefined };
+                setAccounts(prev => prev.map(a => a.id === updatedAcc.id ? updatedAcc : a));
+            }
+        }
+    };
+
     const addAccount = async (accData: Omit<Account, "id">) => {
         const { data } = await supabase.from('accounts').insert([accData]).select().single();
         if (data) {
@@ -355,7 +410,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     return (
         <FinanceContext.Provider value={{
             transactions, accounts, budgets, subscriptions, goals,
-            addTransaction, addAccount, addBudget, addSubscription, addGoal,
+            addTransaction, syncExternalTransactions, addAccount, addBudget, addSubscription, addGoal,
             deleteTransaction, deleteAccount, deleteBudget, deleteSubscription, deleteGoal,
             getIconComponent
         }}>
