@@ -45,9 +45,21 @@ export async function POST(req: NextRequest) {
     // ── Step 2: Persist to Supabase ───────────────────────────────────────────
     const supabase = await createClient();
 
-    const { data: txnRow, error: txnErr } = await supabase
-      .from("transactions")
-      .insert([{
+    let transactionPayloads: any[] = [];
+
+    if (rawItems.length > 0) {
+      transactionPayloads = rawItems.map(it => ({
+        date: bill.date ?? new Date().toISOString().split("T")[0],
+        description: it.n,
+        category: itemCategories[it.n] ?? primaryCategory,
+        type: "Expense",
+        amount: it.p * it.q,
+        status: "Completed",
+        invoice_ref: bill.invoice ?? null,
+        source: "scan",
+      }));
+    } else {
+      transactionPayloads = [{
         date: bill.date ?? new Date().toISOString().split("T")[0],
         description: bill.invoice ?? "Scanned Receipt",
         category: primaryCategory,
@@ -56,38 +68,21 @@ export async function POST(req: NextRequest) {
         status: "Completed",
         invoice_ref: bill.invoice ?? null,
         source: "scan",
-      }])
-      .select()
-      .single();
-
-    if (txnErr || !txnRow) {
-      console.error("Failed to save transaction:", txnErr);
-      return NextResponse.json({ error: "Failed to save transaction" }, { status: 500 });
+      }];
     }
 
-    // Insert items
-    let savedItems: any[] = [];
-    if (rawItems.length > 0) {
-      const { data: itemRows, error: itemErr } = await supabase
-        .from("transaction_items")
-        .insert(rawItems.map(it => ({
-          txn_id: txnRow.id,
-          name: it.n,
-          quantity: it.q,
-          unit_price: it.p,
-          category: itemCategories[it.n] ?? primaryCategory,
-        })))
-        .select();
+    const { data: insertedRows, error: txnErr } = await supabase
+      .from("transactions")
+      .insert(transactionPayloads)
+      .select();
 
-      if (itemErr) console.error("Failed to save items:", itemErr);
-      if (itemRows) savedItems = itemRows;
+    if (txnErr || !insertedRows) {
+      console.error("Failed to save transactions:", txnErr);
+      return NextResponse.json({ error: "Failed to save transactions" }, { status: 500 });
     }
 
-    return NextResponse.json({
-      ...txnRow,
-      items: savedItems,
-      category_prices: categoryPrices,
-    }, { status: 201 });
+    // Since ScannerClient expects an array now, and we return the exact rows inserted:
+    return NextResponse.json(insertedRows, { status: 201 });
   } catch (err) {
     console.error("Error processing transaction", err);
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });

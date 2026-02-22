@@ -68,6 +68,99 @@ export function LedgerClient() {
     const [receiptScanned, setReceiptScanned] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
 
+    // Voice Recording State
+    const [isRecording, setIsRecording] = useState(false);
+    const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+    const [voiceItems, setVoiceItems] = useState<any[]>([]);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
+
+    // Voice Recording Handlers
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            audioChunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    audioChunksRef.current.push(e.data);
+                }
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                await processVoiceTransaction(audioBlob);
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            mediaRecorder.start();
+            setIsRecording(true);
+        } catch (error) {
+            console.error("Error accessing microphone:", error);
+            alert("Could not access microphone. Please check permissions.");
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+        }
+    };
+
+    const processVoiceTransaction = async (audioBlob: Blob) => {
+        setIsProcessingVoice(true);
+        try {
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'voice.webm');
+            formData.append('mimeType', 'audio/webm');
+            formData.append('categories', JSON.stringify(customCategories));
+
+            const res = await fetch('/api/voice-transaction', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.error || "Failed to process voice input");
+            }
+
+            const data = await res.json();
+
+            // Auto fill form
+            setDesc(data.description || "");
+            if (data.amount) setAmt(data.amount.toString());
+
+            if (data.category) {
+                if (!customCategories.includes(data.category)) {
+                    const newCats = [...customCategories, data.category];
+                    setCustomCategories(newCats);
+                    localStorage.setItem("customCategories", JSON.stringify(newCats));
+                }
+                setCat(data.category);
+            }
+
+            if (data.type === "Income" || data.type === "Expense") {
+                setTxnType(data.type);
+            }
+
+            if (data.items) {
+                setVoiceItems(data.items);
+            }
+
+            setShowAiBadge(true);
+
+        } catch (error: any) {
+            console.error("Voice processing error:", error);
+            alert(error.message || "Failed to process voice input.");
+        } finally {
+            setIsProcessingVoice(false);
+        }
+    };
+
     // AI Categorizer Effect
     useEffect(() => {
         if (!desc) {
@@ -162,16 +255,71 @@ export function LedgerClient() {
             category: cat,
             type: txnType,
             amount: parseFloat(amt),
+            source: voiceItems.length > 0 ? "voice" : "manual",
+            items: voiceItems.length > 0 ? voiceItems : undefined,
         });
 
         setIsAddModalOpen(false);
         setDesc("");
         setAmt("");
+        setVoiceItems([]);
         setShowAiBadge(false);
         setReceiptScanned(false);
     };
 
-    // Receipt Scanner Mock Handlers
+    const processReceiptImage = async (file: File) => {
+        setIsScanningReceipt(true);
+        setReceiptScanned(false);
+        try {
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('categories', JSON.stringify(customCategories));
+
+            const res = await fetch('/api/receipt-transaction', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.error || "Failed to process receipt image");
+            }
+
+            const data = await res.json();
+
+            // Auto fill form
+            setDesc(data.description || "");
+            if (data.amount) setAmt(data.amount.toString());
+
+            if (data.category && !customCategories.includes(data.category)) {
+                const newCats = [...customCategories, data.category];
+                setCustomCategories(newCats);
+                localStorage.setItem("customCategories", JSON.stringify(newCats));
+                setCat(data.category);
+            } else if (data.category) {
+                setCat(data.category);
+            }
+
+            if (data.type === "Income" || data.type === "Expense") {
+                setTxnType(data.type);
+            }
+
+            if (data.items) {
+                setVoiceItems(data.items);
+            }
+
+            setShowAiBadge(true);
+            setReceiptScanned(true);
+
+        } catch (error: any) {
+            console.error("Receipt processing error:", error);
+            alert(error.message || "Failed to process receipt image.");
+        } finally {
+            setIsScanningReceipt(false);
+        }
+    };
+
+    // Receipt Scanner Handlers
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(true);
@@ -182,25 +330,25 @@ export function LedgerClient() {
         setIsDragging(false);
     };
 
-    const handleDrop = (e: React.DragEvent) => {
+    const handleDrop = (e: React.DragEvent | React.ChangeEvent<HTMLInputElement>) => {
         e.preventDefault();
         setIsDragging(false);
-        setIsScanningReceipt(true);
-        setReceiptScanned(false);
 
-        // Mock OCR Scan Delay
-        setTimeout(() => {
-            setIsScanningReceipt(false);
-            setReceiptScanned(true);
+        let file: File | null = null;
 
-            // Auto-fill form based on "scanned" receipt
-            setDesc("AWS Cloud Services");
-            setAmt("15450.00");
-            setCat("Infrastructure");
-            setTxnType("Expense");
-            setShowAiBadge(true); // Re-use AI badge to show it was auto-filled
+        if ('dataTransfer' in e) {
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                file = e.dataTransfer.files[0];
+            }
+        } else if (e.target && e.target.files && e.target.files.length > 0) {
+            file = e.target.files[0];
+        }
 
-        }, 1500); // 1.5s scan time
+        if (file && file.type.startsWith('image/')) {
+            processReceiptImage(file);
+        } else {
+            alert("Please provide a valid image file.");
+        }
     };
 
     // Derived Data for Charts
@@ -673,15 +821,42 @@ export function LedgerClient() {
                                             <p className="text-sm font-semibold text-gray-500">Record a new transaction</p>
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={() => setIsAddModalOpen(false)}
-                                        className="text-gray-400 hover:text-black transition-colors bg-gray-50 hover:bg-gray-100 p-2 rounded-full"
-                                    >
-                                        <X className="w-5 h-5" />
-                                    </button>
+                                    <div className="flex gap-3 items-center">
+                                        <button
+                                            type="button"
+                                            onClick={isRecording ? stopRecording : startRecording}
+                                            title="Use Voice AI"
+                                            disabled={isProcessingVoice}
+                                            className={`relative flex items-center justify-center w-10 h-10 rounded-full transition-all shadow-soft overflow-hidden group ${
+                                                isRecording
+                                                    ? 'bg-red-50 text-red-600 border border-red-200 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                                                    : isProcessingVoice
+                                                        ? 'bg-gray-100 text-gray-500 border border-gray-200 cursor-not-allowed'
+                                                        : 'bg-primary/10 text-primary hover:bg-primary/20 hover:scale-105'
+                                            }`}
+                                        >
+                                            {isRecording && (
+                                                <span className="absolute inset-0 bg-red-100/50 animate-pulse rounded-full" />
+                                            )}
+                                            {isProcessingVoice ? (
+                                                <Loader2 className="w-4 h-4 animate-spin relative z-10" />
+                                            ) : isRecording ? (
+                                                <MicOff className="w-4 h-4 relative z-10 animate-pulse" />
+                                            ) : (
+                                                <Mic className="w-5 h-5 relative z-10" />
+                                            )}
+                                        </button>
+                                        <button
+                                            onClick={() => setIsAddModalOpen(false)}
+                                            className="text-gray-400 hover:text-black transition-colors bg-gray-50 hover:bg-gray-100 p-2 rounded-full"
+                                        >
+                                            <X className="w-5 h-5" />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="p-8">
+
                                     {/* Mock Receipt Dropzone */}
                                     <div
                                         className={`mb-6 p-6 border-2 border-dashed rounded-[24px] flex flex-col items-center justify-center text-center transition-all cursor-pointer ${isDragging ? 'border-primary bg-primary/5' : (receiptScanned ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-50 hover:bg-gray-100 hover:border-gray-300')}`}

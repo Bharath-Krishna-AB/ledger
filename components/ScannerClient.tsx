@@ -8,7 +8,7 @@ import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { ScanFace, Receipt, CheckCircle2, Loader2, ArrowRight } from "lucide-react";
 
-async function saveToIndexedDB(bill: any) {
+async function saveToIndexedDB(records: any | any[]) {
     return new Promise<void>((resolve, reject) => {
         const request = indexedDB.open("ledger-db", 1);
 
@@ -21,12 +21,16 @@ async function saveToIndexedDB(bill: any) {
 
         request.onsuccess = () => {
             const db = request.result;
-            const tx = db
-                .transaction("transactions", "readwrite")
-                .objectStore("transactions")
-                .add({ ...bill, id: bill.id || crypto.randomUUID() });
+            const tx = db.transaction("transactions", "readwrite");
+            const store = tx.objectStore("transactions");
 
-            tx.onsuccess = () => resolve();
+            const bills = Array.isArray(records) ? records : [records];
+
+            bills.forEach(bill => {
+                store.add({ ...bill, id: bill.id || crypto.randomUUID() });
+            });
+
+            tx.oncomplete = () => resolve();
             tx.onerror = () => reject(tx.error);
         };
 
@@ -117,7 +121,7 @@ export function ScannerClient() {
                             console.error("Invalid QR:", err);
                             setError("Failed to process the QR Code. Please try again.");
                             await scanner.stop().catch(() => { });
-                            // We don't reset stoppedRef here because scanner is stopped on error. 
+                            // We don't reset stoppedRef here because scanner is stopped on error.
                             // To retry, user will need to refresh/reset component logic (not implemented yet for simplicity, but good for future).
                             setIsProcessing(false);
                         }
