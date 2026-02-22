@@ -7,6 +7,7 @@ import gsap from "gsap";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { ScanFace, Receipt, CheckCircle2, Loader2, ArrowRight } from "lucide-react";
+import { processMockScan, ScannedReceipt } from "@/app/warranty/actions";
 
 async function saveToIndexedDB(records: any | any[]) {
     return new Promise<void>((resolve, reject) => {
@@ -96,6 +97,30 @@ export function ScannerClient() {
 
                                 const savedTx = await res.json();
                                 await saveToIndexedDB(savedTx);
+
+                                // --- Warranty Tracker Integration ---
+                                // Map the decoded QR receipt format to the Expected Warranty format
+                                const warrantyPayload: ScannedReceipt = {
+                                    merchant: decodedBill.merchant || "Unknown Merchant",
+                                    merchant_id: decodedBill.merchant_id || "UNKNOWN",
+                                    transaction_id: decodedBill.invoice || `TXN-${Date.now()}`,
+                                    payment_date: decodedBill.date || new Date().toISOString().split('T')[0],
+                                    total: decodedBill.total || 0,
+                                    currency: "INR",
+                                    items: decodedBill.items ? decodedBill.items.map((item: any) => ({
+                                        name: item.n || "Unknown Item",
+                                        sku: item.s || `SKU-${Date.now()}`,
+                                        category: item.c || "uncategorized",
+                                        price: item.p || 0,
+                                        quantity: item.q || 1,
+                                        // Some QR payloads might have these, otherwise default to Mock logic
+                                        warranty_months: item.wm || 12, // Assume 1 yr default if not specified
+                                        return_window_days: item.rwd || 7, // Assume 7 day return by default
+                                    })) : []
+                                };
+
+                                await processMockScan(warrantyPayload); // Async save to DB
+                                // -------------------------------------
 
                                 params.delete("bill");
 
