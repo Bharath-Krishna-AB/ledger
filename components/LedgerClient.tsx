@@ -17,12 +17,15 @@ import {
     Receipt,
     Sparkles,
     ArrowRight,
-    ArrowRightLeft
+    ArrowRightLeft,
+    Mic,
+    MicOff,
+    Loader2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
-import { useFinance, Transaction } from "@/context/FinanceContext";
+import { useFinance, Transaction, TransactionItem } from "@/context/FinanceContext";
 
 const COLORS = ['#DBDC5D', '#8BBFDA', '#A9B81B', '#703EFF', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#6B7280'];
 
@@ -45,6 +48,8 @@ export function LedgerClient() {
     const [amt, setAmt] = useState("");
     const [cat, setCat] = useState("Sales");
     const [txnType, setTxnType] = useState<"Income" | "Expense">("Income");
+    // Item rows: each item has a name, qty, unit_price, category
+    const [modalItems, setModalItems] = useState<{ name: string; quantity: number; unit_price: number; category: string }[]>([]);
 
     // Filter & Sort state
     const [searchQuery, setSearchQuery] = useState("");
@@ -66,6 +71,13 @@ export function LedgerClient() {
     const [isScanningReceipt, setIsScanningReceipt] = useState(false);
     const [receiptScanned, setReceiptScanned] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
+
+    // Voice Input State
+    const [isRecording, setIsRecording] = useState(false);
+    const [isTranscribing, setIsTranscribing] = useState(false);
+    const [voiceTranscript, setVoiceTranscript] = useState<string | null>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
 
     // AI Categorizer Effect
     useEffect(() => {
@@ -153,21 +165,106 @@ export function LedgerClient() {
 
     const handleAddTransaction = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!desc || !amt || !cat) return;
 
-        addTransaction({
-            date: new Date().toISOString().split('T')[0],
-            description: desc,
-            category: cat,
-            type: txnType,
-            amount: parseFloat(amt),
-        });
+        // If items exist, use them; otherwise fall back to single amount
+        if (modalItems.length > 0) {
+            addTransaction({
+                date: new Date().toISOString().split('T')[0],
+                description: desc,
+                category: modalItems[0].category,
+                type: txnType,
+                amount: modalItems.reduce((s, it) => s + it.unit_price * it.quantity, 0),
+                source: 'manual',
+                items: modalItems,
+            });
+        } else {
+            if (!desc || !amt || !cat) return;
+            addTransaction({
+                date: new Date().toISOString().split('T')[0],
+                description: desc,
+                category: cat,
+                type: txnType,
+                amount: parseFloat(amt),
+                source: 'manual',
+                items: [{ id: '', txn_id: '', name: desc, quantity: 1, unit_price: parseFloat(amt), category: cat }],
+            });
+        }
 
         setIsAddModalOpen(false);
         setDesc("");
         setAmt("");
+        setModalItems([]);
         setShowAiBadge(false);
         setReceiptScanned(false);
+        setVoiceTranscript(null);
+    };
+
+    // Voice Input Handlers
+    const startVoiceRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Pick the best MIME type Whisper accepts
+            const preferredTypes = [
+                "audio/webm;codecs=opus",
+                "audio/webm",
+                "audio/ogg;codecs=opus",
+                "audio/ogg",
+                "audio/mp4",
+            ];
+            const mimeType = preferredTypes.find(t => MediaRecorder.isTypeSupported(t)) ?? "";
+            const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+            mediaRecorderRef.current = mr;
+            audioChunksRef.current = [];
+            mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+            mr.start();
+            setIsRecording(true);
+            setVoiceTranscript(null);
+        } catch {
+            alert("Microphone access denied. Please allow microphone permissions.");
+        }
+    };
+
+    const stopVoiceRecording = async () => {
+        const mr = mediaRecorderRef.current;
+        if (!mr) return;
+
+        setIsRecording(false);
+        setIsTranscribing(true);
+
+        mr.onstop = async () => {
+            const actualMimeType = mr.mimeType || "audio/webm";
+            const audioBlob = new Blob(audioChunksRef.current, { type: actualMimeType });
+            mr.stream.getTracks().forEach(t => t.stop());
+
+            const formData = new FormData();
+            formData.append("audio", audioBlob, "voice.webm");
+            formData.append("categories", JSON.stringify(customCategories));
+            formData.append("mimeType", actualMimeType);
+
+            try {
+                const res = await fetch("/api/voice-transaction", { method: "POST", body: formData });
+                const data = await res.json();
+                if (res.ok) {
+                    setDesc(data.description);
+                    setAmt(String(data.amount));
+                    setTxnType(data.type);
+                    setCat(data.category);
+                    setShowAiBadge(true);
+                    setVoiceTranscript(data.transcript);
+                    // Populate item rows from voice
+                    if (Array.isArray(data.items) && data.items.length > 0) {
+                        setModalItems(data.items);
+                    }
+                } else {
+                    alert("Voice processing failed: " + data.error);
+                }
+            } catch {
+                alert("Network error processing voice.");
+            } finally {
+                setIsTranscribing(false);
+            }
+        };
+        mr.stop();
     };
 
     // Receipt Scanner Mock Handlers
@@ -685,13 +782,50 @@ export function LedgerClient() {
                                             <p className="text-sm font-semibold text-gray-500">Record a new transaction</p>
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={() => setIsAddModalOpen(false)}
-                                        className="text-gray-400 hover:text-black transition-colors bg-gray-50 hover:bg-gray-100 p-2 rounded-full"
-                                    >
-                                        <X className="w-5 h-5" />
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        {/* Voice Input Button */}
+                                        <button
+                                            type="button"
+                                            onMouseDown={startVoiceRecording}
+                                            onMouseUp={stopVoiceRecording}
+                                            onTouchStart={startVoiceRecording}
+                                            onTouchEnd={stopVoiceRecording}
+                                            disabled={isTranscribing}
+                                            title="Hold to record voice input"
+                                            className={`relative p-2.5 rounded-full transition-all ${
+                                                isRecording
+                                                    ? "bg-red-500 text-white shadow-lg scale-110 ring-4 ring-red-200"
+                                                    : isTranscribing
+                                                    ? "bg-primary/10 text-primary"
+                                                    : "bg-gray-100 text-gray-500 hover:bg-primary/10 hover:text-primary"
+                                            }`}
+                                        >
+                                            {isTranscribing ? (
+                                                <Loader2 className="w-5 h-5 animate-spin" />
+                                            ) : isRecording ? (
+                                                <MicOff className="w-5 h-5" />
+                                            ) : (
+                                                <Mic className="w-5 h-5" />
+                                            )}
+                                            {isRecording && (
+                                                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-400 rounded-full animate-ping" />
+                                            )}
+                                        </button>
+                                        <button
+                                            onClick={() => setIsAddModalOpen(false)}
+                                            className="text-gray-400 hover:text-black transition-colors bg-gray-50 hover:bg-gray-100 p-2 rounded-full"
+                                        >
+                                            <X className="w-5 h-5" />
+                                        </button>
+                                    </div>
                                 </div>
+                                {/* Voice transcript preview */}
+                                {voiceTranscript && (
+                                    <div className="mx-8 mb-2 -mt-2 flex items-start gap-2 bg-primary/5 border border-primary/20 rounded-2xl px-4 py-3">
+                                        <Mic className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
+                                        <p className="text-xs text-primary font-medium italic leading-relaxed">&ldquo;{voiceTranscript}&rdquo;</p>
+                                    </div>
+                                )}
 
                                 <div className="p-8">
                                     {/* Mock Receipt Dropzone */}

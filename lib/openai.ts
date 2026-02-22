@@ -5,18 +5,18 @@ import OpenAI from 'openai';
  * Returns a mapping of category names to total spent in that category.
  */
 export async function categorizeBillItems(
-  items: { name: string; price: number }[],
+  items: { n: string; q: number; p: number }[],
   categories: string[]
 ): Promise<Record<string, number>> {
   if (!items || items.length === 0 || !categories || categories.length === 0) {
-    return { "Uncategorized": items.reduce((sum, item) => sum + item.price, 0) };
+    return { "Uncategorized": items.reduce((sum, item) => sum + item.p * item.q, 0) };
   }
 
   const prompt = `
     You are an expert financial categorizer.
 
     Given the following items from a bill:
-    ${JSON.stringify(items, null, 2)}
+    ${JSON.stringify(items.map(it => ({ name: it.n, price: it.p * it.q })), null, 2)}
 
     And the following custom categories defined by the user:
     ${JSON.stringify(categories, null, 2)}
@@ -56,7 +56,7 @@ export async function categorizeBillItems(
     console.error("Failed to categorize bill items:", error);
     // Fallback: Dump everything into uncategorized or the first category
     const fallbackCategory = categories.length > 0 ? categories[0] : "Uncategorized";
-    const total = items.reduce((acc, current) => acc + current.price, 0);
+    const total = items.reduce((acc, current) => acc + current.p * current.q, 0);
     return { [fallbackCategory]: total };
   }
 }
