@@ -14,7 +14,8 @@ import {
   User,
   CreditCard,
   Building2,
-  ScanFace
+  ScanFace,
+  ShieldCheck
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -28,6 +29,7 @@ export function Sidebar() {
     { icon: BarChart2, label: "Analytics", href: "/analytics", badge: "NEW" },
     { icon: PieChart, label: "Generator", href: "/generator" },
     { icon: ScanFace, label: "Scanner", href: "/scanner" },
+    { icon: ShieldCheck, label: "Warranty", href: "/warranty", badge: "NEW" },
     { icon: Settings, label: "Settings", href: "#" },
     { icon: User, label: "Profile", href: "#" },
   ];

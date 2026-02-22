@@ -180,86 +180,94 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
     // Actions
     const addTransaction = async (txnData: Omit<Transaction, "id" | "status">) => {
-        // Compute amount from items if provided, else use txnData.amount directly
         const items = txnData.items ?? [];
-        const computedAmount = items.length > 0
-            ? items.reduce((sum, it) => sum + it.unit_price * it.quantity, 0)
-            : Math.abs(txnData.amount);
 
-        // Primary category: first item's category, or txnData.category
-        const primaryCategory = items[0]?.category ?? txnData.category;
+        let insertedTransactions: Transaction[] = [];
+        let totalComputedAmount = 0;
+        let primaryCategory = txnData.category;
 
-        const { data, error } = await supabase.from('transactions').insert([{
-            date: txnData.date,
-            description: txnData.description,
-            category: primaryCategory,
-            type: txnData.type,
-            amount: computedAmount,
-            status: 'Completed',
-            invoice_ref: txnData.invoice_ref ?? null,
-            source: txnData.source ?? 'manual',
-        }]).select().single();
-
-        if (error || !data) {
-            console.error("Failed to insert transaction:", error);
-            return;
-        }
-
-        // Insert child items
-        let savedItems: TransactionItem[] = [];
         if (items.length > 0) {
-            const { data: itemData, error: itemError } = await supabase
-                .from('transaction_items')
-                .insert(items.map(it => ({
-                    txn_id: data.id,
-                    name: it.name,
-                    quantity: it.quantity,
-                    unit_price: it.unit_price,
-                    category: it.category,
-                })))
-                .select();
+            // Loop through each item and create an independent transaction for it
+            for (const item of items) {
+                const itemAmount = item.unit_price * item.quantity;
+                totalComputedAmount += itemAmount;
+                const { data, error } = await supabase.from('transactions').insert([{
+                    date: txnData.date,
+                    description: item.name,
+                    category: item.category || txnData.category,
+                    type: txnData.type,
+                    amount: itemAmount,
+                    status: 'Completed',
+                    invoice_ref: txnData.invoice_ref ?? null,
+                    source: txnData.source ?? 'manual',
+                }]).select().single();
 
-            if (itemError) console.error("Failed to insert transaction items:", itemError);
-            if (itemData) savedItems = itemData.map(mapItem);
-        }
-
-        const newTxn = mapTransaction({ ...data, transaction_items: savedItems });
-        setTransactions(prev => [newTxn, ...prev]);
-
-        // Smart Budget integration
-        const matchedBudget = budgets.find(b =>
-            primaryCategory === b.name ||
-            (primaryCategory === "Software" && b.name === "Tech Subscriptions") ||
-            (primaryCategory === "Services" && b.name === "Housing & Utilities")
-        );
-
-        if (matchedBudget) {
-            const newSpent = matchedBudget.spent + computedAmount;
-            const overBudget = newSpent > matchedBudget.allocated;
-            const { data: bgtData } = await supabase.from('budgets')
-                .update({ spent: newSpent, overBudget })
-                .eq('id', matchedBudget.id)
-                .select().single();
-
-            if (bgtData) {
-                const updatedBgt = { ...bgtData, allocated: Number(bgtData.allocated), spent: Number(bgtData.spent) };
-                setBudgets(prev => prev.map(b => b.id === updatedBgt.id ? updatedBgt : b));
+                if (error || !data) {
+                    console.error("Failed to insert item transaction:", error);
+                } else {
+                    insertedTransactions.push(mapTransaction({ ...data, transaction_items: [] }));
+                }
             }
+            primaryCategory = items[0]?.category ?? txnData.category;
+        } else {
+            // Standard single transaction insert without items
+            totalComputedAmount = Math.abs(txnData.amount);
+            const { data, error } = await supabase.from('transactions').insert([{
+                date: txnData.date,
+                description: txnData.description,
+                category: txnData.category,
+                type: txnData.type,
+                amount: totalComputedAmount,
+                status: 'Completed',
+                invoice_ref: txnData.invoice_ref ?? null,
+                source: txnData.source ?? 'manual',
+            }]).select().single();
+
+            if (error || !data) {
+                console.error("Failed to insert transaction:", error);
+                return; // halt if the single txn fails
+            }
+            insertedTransactions.push(mapTransaction({ ...data, transaction_items: [] }));
         }
 
-        // Adjust primary account balance
-        const primaryAcc = accounts.find(a => a.type === 'Checking');
-        if (primaryAcc) {
-            const delta = txnData.type === 'Income' ? computedAmount : -computedAmount;
-            const newBalance = primaryAcc.balance + delta;
-            const { data: accData } = await supabase.from('accounts')
-                .update({ balance: newBalance })
-                .eq('id', primaryAcc.id)
-                .select().single();
+        if (insertedTransactions.length > 0) {
+            setTransactions(prev => [...insertedTransactions, ...prev]);
 
-            if (accData) {
-                const updatedAcc = { ...accData, balance: Number(accData.balance), limit: accData.limit ? Number(accData.limit) : undefined };
-                setAccounts(prev => prev.map(a => a.id === updatedAcc.id ? updatedAcc : a));
+            // Smart Budget integration (based on total cost and primary category)
+            const matchedBudget = budgets.find(b =>
+                primaryCategory === b.name ||
+                (primaryCategory === "Software" && b.name === "Tech Subscriptions") ||
+                (primaryCategory === "Services" && b.name === "Housing & Utilities")
+            );
+
+            if (matchedBudget) {
+                const newSpent = matchedBudget.spent + totalComputedAmount;
+                const overBudget = newSpent > matchedBudget.allocated;
+                const { data: bgtData } = await supabase.from('budgets')
+                    .update({ spent: newSpent, overBudget })
+                    .eq('id', matchedBudget.id)
+                    .select().single();
+
+                if (bgtData) {
+                    const updatedBgt = { ...bgtData, allocated: Number(bgtData.allocated), spent: Number(bgtData.spent) };
+                    setBudgets(prev => prev.map(b => b.id === updatedBgt.id ? updatedBgt : b));
+                }
+            }
+
+            // Adjust primary account balance
+            const primaryAcc = accounts.find(a => a.type === 'Checking');
+            if (primaryAcc) {
+                const delta = txnData.type === 'Income' ? totalComputedAmount : -totalComputedAmount;
+                const newBalance = primaryAcc.balance + delta;
+                const { data: accData } = await supabase.from('accounts')
+                    .update({ balance: newBalance })
+                    .eq('id', primaryAcc.id)
+                    .select().single();
+
+                if (accData) {
+                    const updatedAcc = { ...accData, balance: Number(accData.balance), limit: accData.limit ? Number(accData.limit) : undefined };
+                    setAccounts(prev => prev.map(a => a.id === updatedAcc.id ? updatedAcc : a));
+                }
             }
         }
     };
