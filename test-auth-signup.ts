@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
-import dotenv from 'dotenv'
-
-dotenv.config({ path: '.env.local' })
+// To run this script locally with env vars:
+// node --env-file=.env.local -r ts-node/register test-auth-signup.ts
+// Or with tsx:
+// npx tsx --env-file=.env.local test-auth-signup.ts
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-
-dotenv.config({ path: '.env.local' });
+// To run this script locally with env vars:
+// node --env-file=.env.local test-auth-signup.mjs
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
